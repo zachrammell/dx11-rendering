@@ -1,0 +1,3 @@
+# ignore auto-generated Visual Studio artifacts
+.vs/*
+out/*
