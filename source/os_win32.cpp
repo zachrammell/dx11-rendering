@@ -1,14 +1,31 @@
+/* Start Header -------------------------------------------------------
+Copyright (C) 2020 DigiPen Institute of Technology.
+Reproduction or disclosure of this file or its contents without the prior written
+consent of DigiPen Institute of Technology is prohibited.
+File Name: os_win32.cpp
+Purpose: OS layer
+Language: C++
+Platform: Windows 8.1+, MSVC v142, DirectX 11 compatible graphics hardware
+Project: zach.rammell_CS300_1
+Author: Zach Rammell, zach.rammell
+Creation date: 10/2/20
+End Header --------------------------------------------------------*/
+
 #include "os_win32.h"
+
+#include "imgui_impl_win32.h"
 
 #include "render_dx11.h"
 
-namespace CS300
+extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+namespace CS350
 {
 
 OS_Win32::OS_Win32(LPCTSTR title, int width, int height)
   : should_close_window_{ false },
     window_handle_{ nullptr },
-    width_{ width }, height_{ height },
+    width_{}, height_{},
     render_{nullptr},
 
     window_procedure_callback_helper_{this, &OS_Win32::WindowProcedure}
@@ -46,7 +63,7 @@ OS_Win32::OS_Win32(LPCTSTR title, int width, int height)
     title,
     WS_OVERLAPPEDWINDOW,
     CW_USEDEFAULT, CW_USEDEFAULT,
-    width_, height_,
+    width, height,
     nullptr,
     nullptr,
     instance_handle,
@@ -60,12 +77,23 @@ OS_Win32::OS_Win32(LPCTSTR title, int width, int height)
     __debugbreak();
   }
 
-  ShowWindow(window_handle_, true);
-  UpdateWindow(window_handle_);
+  // Update stored width and height to represent only the client area
+  {
+    RECT window_rect;
+    GetClientRect(window_handle_, &window_rect);
+    width_ = (window_rect.right - window_rect.left);
+    height_ = (window_rect.bottom - window_rect.top);
+  }
+}
+
+OS_Win32::~OS_Win32()
+{
+  DestroyWindow(window_handle_);
 }
 
 void OS_Win32::HandleMessages()
 {
+  mouse_data_.dx = mouse_data_.dy = mouse_data_.scroll_dy = 0;
   MSG msg{};
   while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
   {
@@ -103,6 +131,11 @@ LRESULT OS_Win32::WindowProcedure(HWND handle_window,
   WPARAM w_param,
   LPARAM l_param)
 {
+  if (ImGui_ImplWin32_WndProcHandler(handle_window, message, w_param, l_param))
+  {
+    return true;
+  }
+
   switch (message)
   {
   case WM_KEYDOWN:
@@ -112,7 +145,7 @@ LRESULT OS_Win32::WindowProcedure(HWND handle_window,
       if (MessageBox(nullptr, TEXT("Are you sure you want to exit?"),
         TEXT("Really?"), MB_YESNOCANCEL | MB_ICONQUESTION) == IDYES)
       {
-        DestroyWindow(handle_window);
+        should_close_window_ = true;
       }
     }
     return 0;
@@ -128,8 +161,50 @@ LRESULT OS_Win32::WindowProcedure(HWND handle_window,
   {
     if (render_)
     {
+      width_ = LOWORD(l_param);
+      height_ = HIWORD(l_param);
       render_->ResizeFramebuffer(*this);
     }
+    break;
+  }
+
+  case WM_MOUSEMOVE:
+  {
+    POINTS mouse_pos = MAKEPOINTS(l_param);
+    mouse_data_.dx = mouse_pos.x - mouse_data_.x;
+    mouse_data_.x = mouse_pos.x;
+    mouse_data_.dy = mouse_pos.y - mouse_data_.y;
+    mouse_data_.y = mouse_pos.y;
+    break;
+  }
+
+  case WM_RBUTTONDOWN:
+  {
+    mouse_data_.right = true;
+    break;
+  }
+
+  case WM_LBUTTONDOWN:
+  {
+    mouse_data_.left = true;
+    break;
+  }
+
+  case WM_RBUTTONUP:
+  {
+    mouse_data_.right = false;
+    break;
+  }
+
+  case WM_LBUTTONUP:
+  {
+    mouse_data_.left = false;
+    break;
+  }
+
+  case WM_MOUSEWHEEL:
+  {
+    mouse_data_.scroll_dy = GET_WHEEL_DELTA_WPARAM(w_param) / WHEEL_DELTA;
     break;
   }
 
@@ -144,9 +219,20 @@ void OS_Win32::AttachRender(Render_DX11* render)
   render_ = render;
 }
 
+void OS_Win32::Show()
+{
+  ShowWindow(window_handle_, SW_SHOWDEFAULT);
+  UpdateWindow(window_handle_);
+}
+
 double OS_Win32::GetTime() const
 {
   return timer_.GetTime();
+}
+
+OS_Win32::MouseData OS_Win32::GetMouseData() const
+{
+  return mouse_data_;
 }
 
 OS_Win32::Timer::Timer()
