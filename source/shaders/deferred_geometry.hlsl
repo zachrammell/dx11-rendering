@@ -1,21 +1,14 @@
 #include "../structures/per_object.h"
-#include "phong_common.hlsl"
-
-// PEEPO WEIRD CLAP
+#include "../structures/per_frame.h"
 
 cbuffer cb_per_object : register(b0)
 {
-  per_object data;
+  per_object obj_data;
 }
 
 cbuffer cb_per_frame : register(b1)
 {
-  float4x4 ViewProjection;
-  float4   CameraPosition;
-  float4 AmbientColor;
-  float4 FogColor;
-  float FogNear;
-  float FogFar;
+  per_frame frame_data;
 }
 
 Texture2D TextureDiffuse : register(t0);
@@ -42,74 +35,39 @@ struct vs_out
 vs_out vs_main(vs_in input)
 {
   vs_out output;
-  output.position_world = mul(data.World, float4(input.position_local, 1.0f));
-  output.position_clip = mul(ViewProjection, output.position_world);
-  output.normal = mul(data.WorldNormal, input.normal);
+  output.position_world = mul(obj_data.World, float4(input.position_local, 1.0f));
+  output.position_clip = mul(frame_data.ViewProjection, output.position_world);
+  output.normal = mul(obj_data.WorldNormal, input.normal);
   output.uv = input.tex_coord;
   return output;
 }
 
-float4 ps_main(vs_out input) : SV_TARGET
+struct ps_out
 {
-  const float3 view = normalize(CameraPosition.xyz - input.position_world.xyz);
+  float4 color : SV_TARGET0;
+  float4 normal : SV_TARGET1;
+  float4 position : SV_TARGET2;
+};
+
+ps_out ps_main(vs_out input) : SV_TARGET
+{
+  ps_out output;
+  const float3 view = normalize(frame_data.CameraPosition.xyz - input.position_world.xyz);
   const float3 normal = normalize(input.normal);
 
-  float3 diffuse_color = data.Color.rgb;
+  float3 diffuse_color = obj_data.Color.rgb;
   float2 uv = input.uv;
 
   diffuse_color *= TextureDiffuse.Sample(Sampler, uv);
 
-  const float3 ambient_color = diffuse_color * AmbientColor;
+  const float3 ambient_color = diffuse_color;
   float3 color = ambient_color;
 
-  light_contribution all_of_the_lights;
+  output.color.xyz = color;
+  output.color.a = 1.0f;
+  output.normal.xyz = normal;
+  output.normal.a = 1.0f;
+  output.position = input.position_world;
 
-  for (int i = 0; i < LightCount; ++i)
-  {
-    switch (LightType[i].x)
-    {
-    case LT_POINT:
-    {
-      light_contribution point_light = PointLight(
-        make_point_light(LightColors[i].rgb, LightPositions[i].xyz),
-        input.position_world.xyz, view, normal
-      );
-      all_of_the_lights.diffuse += point_light.diffuse;
-      all_of_the_lights.specular += point_light.specular;
-    }
-    break;
-    case LT_DIRECTIONAL:
-    {
-      light_contribution directional_light = DirectionalLight(
-        make_directional_light(LightColors[i].rgb, LightDirections[i].xyz),
-        view, normal
-      );
-      all_of_the_lights.diffuse += directional_light.diffuse;
-      all_of_the_lights.specular += directional_light.specular;
-    }
-    break;
-    case LT_SPOTLIGHT:
-    {
-      const float inner_angle = LightSpotlightData[i].x;
-      const float outer_angle = LightSpotlightData[i].y;
-      const float falloff = LightSpotlightData[i].z;
-      light_contribution spot_light = SpotLight(
-        make_spot_light(LightColors[i].rgb, LightPositions[i].xyz, LightDirections[i].xyz, inner_angle, outer_angle, falloff),
-        input.position_world.xyz, view, normal
-      );
-      all_of_the_lights.diffuse += spot_light.diffuse;
-      all_of_the_lights.specular += spot_light.specular;
-    }
-    break;
-    default:
-      color += float3(1, 0, 1);
-      break;
-    }
-  }
-
-  color += diffuse_color * all_of_the_lights.diffuse;
-  color += TextureSpecular.Sample(Sampler, uv).r * all_of_the_lights.specular;
-  color = Fog(color, FogColor.rgb, length(CameraPosition.xyz - input.position_world.xyz), FogNear, FogFar);
-
-  return float4(color, 1.0f); // must return an RGBA color
+  return output;
 }

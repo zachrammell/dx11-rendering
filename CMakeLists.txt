@@ -8,27 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project("cs350-project")
 
-# Build IMGUI
-set(IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/imgui")
-set(IMGUI_INCLUDE_DIR "${IMGUI_DIR}" "${IMGUI_DIR}/examples")
-file(GLOB IMGUI_SRC "${IMGUI_DIR}/*.cpp")
-# Append IMGUI SRC with dx11 and win32
-set(IMGUI_SRC
-  ${IMGUI_SRC}
-  ${IMGUI_DIR}/examples/imgui_impl_dx11.cpp
-  ${IMGUI_DIR}/examples/imgui_impl_win32.cpp)
-add_library(IMGUI ${IMGUI_SRC})
-target_include_directories(IMGUI
-  PUBLIC
-  ${IMGUI_INCLUDE_DIR}
-)
-target_link_libraries(IMGUI
-  PRIVATE
-  user32
-  d3d11
-  dxgi
-  d3dcompiler
-)
+add_subdirectory("external")
 
 # Add source to this project's executable.
 add_executable(${PROJECT_NAME}
@@ -64,17 +44,8 @@ target_link_libraries(${PROJECT_NAME}
   dxgi
   d3dcompiler
   IMGUI
+  assimp
 )
-
-set(shader_sources
-${CMAKE_SOURCE_DIR}/assets/shaders/deferred_geometry.hlsl
-)
-
-add_custom_target(shaders ALL
-  DEPENDS ${shader_sources}
-)
-
-add_dependencies(${PROJECT_NAME} shaders)
 
 function(preprocess_file)
   cmake_parse_arguments(
@@ -87,10 +58,25 @@ function(preprocess_file)
   execute_process(COMMAND ${CMAKE_C_COMPILER} /DCS350_HLSL_PREPROCESS /Zc:preprocessor /P /EP /Fi${ARG_OUTPUT} ${ARG_FILE})
 endfunction()
 
-preprocess_file(FILE "${CMAKE_SOURCE_DIR}/source/shaders/deferred_geometry.hlsl" OUTPUT "${CMAKE_SOURCE_DIR}/assets/shaders/deferred_geometry.hlsl")
+# preprocess_file(FILE "${CMAKE_SOURCE_DIR}/source/shaders/deferred_geometry.hlsl" OUTPUT "${CMAKE_SOURCE_DIR}/assets/shaders/deferred_geometry.hlsl")
 
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-                   COMMAND ${CMAKE_COMMAND} -E copy_directory
-                   ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:${PROJECT_NAME}>/Assets)
+set(shader_deferred_geometry ${CMAKE_SOURCE_DIR}/assets/shaders/deferred_geometry.hlsl)
+set(shader_deferred_geometry_src ${CMAKE_SOURCE_DIR}/source/shaders/deferred_geometry.hlsl)
+
+add_custom_command(
+  OUTPUT ${shader_deferred_geometry}
+  COMMAND ${CMAKE_C_COMPILER} /DCS350_HLSL_PREPROCESS /Zc:preprocessor /P /EP /Fi${shader_deferred_geometry} ${shader_deferred_geometry_src}
+  DEPENDS ${shader_deferred_geometry_src}
+)
+
+add_custom_target(
+  shaders
+  DEPENDS ${shader_deferred_geometry}
+)
+
+add_dependencies(
+  ${PROJECT_NAME}
+  shaders
+)
 
 # TODO: Add tests and install targets if needed.

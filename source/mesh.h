@@ -5,7 +5,7 @@ consent of DigiPen Institute of Technology is prohibited.
 File Name: mesh.h
 Language: C++
 Platform: Windows 8.1+, MSVC v142, DirectX 11 compatible graphics hardware
-Project: zach.rammell_CS300_1
+Project: zach.rammell_CS350_1
 Author: Zach Rammell, zach.rammell
 Creation date: 10/2/20
 End Header --------------------------------------------------------*/

@@ -12,6 +12,6 @@ struct x {
 __pragma(pack(pop)) \
 }
 
-#define FIELD(name, type) alignas(__COUNTER__) EXPAND(type) name
+#define FIELD(name, type) EXPAND(type) name
 
 #endif

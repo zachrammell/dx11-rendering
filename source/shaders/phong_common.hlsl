@@ -84,7 +84,8 @@ float3 Phong(float3 light, float3 normal, float3 light_color, float3 view)
   const float normal_dot_light = max(dot(normal, light), 0.0f);
   const float3 reflection = normalize(2.0f * normal_dot_light * normal - light);
   const float reflection_dot_view = saturate(dot(reflection, view));
-  const float3 color_specular = normal_dot_light > 0.0f ? max(SpecularCoefficient * pow(reflection_dot_view, SpecularExponent) * light_color, float3(0.f, 0.f, 0.f)) : float3(0.f, 0.f, 0.f);
+  // TODO: fix coefficients
+  const float3 color_specular = normal_dot_light > 0.0f ? max(/*SpecularCoefficient*/0.5f * pow(reflection_dot_view, 16/*SpecularExponent*/) * light_color, float3(0.f, 0.f, 0.f)) : float3(0.f, 0.f, 0.f);
   return color_specular;
 }
 
@@ -118,8 +119,8 @@ light_contribution SpotLight(spot_light in_light, float3 fragment_position, floa
   {
     return make_light_contribution(float3(0, 0, 0), float3(0, 0, 0));
   }
-
-  light_contribution point_light = PointLight(make_point_light(in_light.color, in_light.position), fragment_position, view, normal, AttenuationConstants);
+  // TODO: fix attenuation constants
+  light_contribution point_light = PointLight(make_point_light(in_light.color, in_light.position), fragment_position, view, normal, float3(0,0,0)/*AttenuationConstants*/);
 
   if (cos_alpha > cos(in_light.inner_angle))
   {

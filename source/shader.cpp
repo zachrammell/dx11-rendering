@@ -5,7 +5,7 @@ consent of DigiPen Institute of Technology is prohibited.
 File Name: shader.cpp
 Language: C++
 Platform: Windows 8.1+, MSVC v142, DirectX 11 compatible graphics hardware
-Project: zach.rammell_CS300_1
+Project: zach.rammell_CS350_1
 Author: Zach Rammell, zach.rammell
 Creation date: 10/2/20
 End Header --------------------------------------------------------*/
@@ -44,13 +44,18 @@ Shader::Shader(Render_DX11& render, LPCWSTR shader_path, int input_layout, bool 
     &error_buffer
   );
 
-  if (FAILED(hr)) {
+  if (FAILED(hr))
+  {
     std::cerr << std::system_category().message(hr) << std::endl;
-    if (error_buffer) {
+    if (error_buffer)
+    {
       std::cerr << (char*)error_buffer->GetBufferPointer() << std::endl;
       error_buffer->Release();
     }
-    if (vertex_shader_buffer) { vertex_shader_buffer->Release(); }
+    if (vertex_shader_buffer)
+    {
+      vertex_shader_buffer->Release();
+    }
     assert(!"Couldn't compile vertex shader");
   }
 
@@ -67,13 +72,18 @@ Shader::Shader(Render_DX11& render, LPCWSTR shader_path, int input_layout, bool 
     &error_buffer
   );
 
-  if (FAILED(hr)) {
+  if (FAILED(hr))
+  {
     std::cerr << std::system_category().message(hr) << std::endl;
-    if (error_buffer) {
+    if (error_buffer)
+    {
       std::cerr << (char*)error_buffer->GetBufferPointer() << std::endl;
       error_buffer->Release();
     }
-    if (pixel_shader_buffer) { pixel_shader_buffer->Release(); }
+    if (pixel_shader_buffer)
+    {
+      pixel_shader_buffer->Release();
+    }
     assert(!"Couldn't compile pixel shader");
   }
 
@@ -92,13 +102,18 @@ Shader::Shader(Render_DX11& render, LPCWSTR shader_path, int input_layout, bool 
       &error_buffer
     );
 
-    if (FAILED(hr)) {
+    if (FAILED(hr))
+    {
       std::cerr << std::system_category().message(hr) << std::endl;
-      if (error_buffer) {
+      if (error_buffer)
+      {
         std::cerr << (char*)error_buffer->GetBufferPointer() << std::endl;
         error_buffer->Release();
       }
-      if (geometry_shader_buffer) { geometry_shader_buffer->Release(); }
+      if (geometry_shader_buffer)
+      {
+        geometry_shader_buffer->Release();
+      }
     }
   }
 
@@ -144,25 +159,25 @@ Shader::Shader(Render_DX11& render, LPCWSTR shader_path, int input_layout, bool 
   if (input_layout & InputLayout_POS)
   {
     input_element_descriptor[elements_filled] =
-      { "POS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+    { "POS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, elements_filled ? D3D11_APPEND_ALIGNED_ELEMENT : 0, D3D11_INPUT_PER_VERTEX_DATA, 0 };
     ++elements_filled;
   }
   if (input_layout & InputLayout_COL)
   {
     input_element_descriptor[elements_filled] =
-      { "COL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+    { "COL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, elements_filled ? D3D11_APPEND_ALIGNED_ELEMENT : 0, D3D11_INPUT_PER_VERTEX_DATA, 0 };
     ++elements_filled;
   }
   if (input_layout & InputLayout_NOR)
   {
     input_element_descriptor[elements_filled] =
-      { "NOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+    { "NOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, elements_filled ? D3D11_APPEND_ALIGNED_ELEMENT : 0, D3D11_INPUT_PER_VERTEX_DATA, 0 };
     ++elements_filled;
   }
   if (input_layout & InputLayout_TEX)
   {
     input_element_descriptor[elements_filled] =
-      { "TEX", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+    { "TEX", 0, DXGI_FORMAT_R32G32_FLOAT, 0, elements_filled ? D3D11_APPEND_ALIGNED_ELEMENT : 0, D3D11_INPUT_PER_VERTEX_DATA, 0 };
     ++elements_filled;
   }
 

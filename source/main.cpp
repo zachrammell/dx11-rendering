@@ -6,7 +6,7 @@ File Name: main.cpp
 Purpose: most of the functionality
 Language: C++
 Platform: MSVC v142, DirectX 11 compatible graphics hardware
-Project: zach.rammell_CS300_1
+Project: zach.rammell_CS350_1
 Author: Zach Rammell, zach.rammell
 Creation date: 10/2/20
 End Header --------------------------------------------------------*/
@@ -25,7 +25,10 @@ End Header --------------------------------------------------------*/
 #include <imgui_impl_dx11.h>
 #include <imgui_impl_win32.h>
 
+#include <assimp/Importer.hpp>
+
 #include "structures/per_object.h"
+#include "structures/per_frame.h"
 
 #include "math_helper.h"
 namespace fs = std::filesystem;
@@ -47,8 +50,8 @@ int main()
   dx::XMMATRIX cam_view_matrix;
   dx::XMMATRIX cam_projection_matrix;
 
-  dx::XMFLOAT3 cam_position = { -5.0f, 3.0f, -10.0f };
-  dx::XMFLOAT3 cam_target = { 0.0f, 0.0f, 0.0f };
+  float4 cam_position = { -5.0f, 3.0f, -10.0f, 0.0f };
+  float3 cam_target = { 0.0f, 0.0f, 0.0f };
 
   ImGui::CreateContext();
   ImGuiIO& io = ImGui::GetIO();
@@ -84,8 +87,36 @@ int main()
   float mouse_sensitivity = 0.005f;
 
   per_object per_object_data;
+  per_frame per_frame_data;
 
-  CS350::Render_DX11::FramebufferID framebuffer = render.CreateFramebuffer(screen_width, screen_height, 3);
+  CS350::Mesh sphere_mesh = CS350::GenerateSphereMesh(8, 8);
+  CS350::Image metal_image = CS350::Image("assets/textures/metal_roof_diff_512x512.png");
+
+  CS350::Render_DX11::MeshID sphere_mesh_d3d = render.CreateMesh(sphere_mesh);
+  CS350::Render_DX11::MeshID sphere_normals_mesh_d3d = render.CreateMesh(sphere_mesh.face_center_vertex_buffer);
+
+  CS350::Render_DX11::TextureID metal_texture = render.CreateTexture(metal_image);
+  CS350::Render_DX11::FramebufferID framebuffer = render.CreateFramebuffer(screen_width, screen_height, 4);
+  CS350::Render_DX11::ShaderID deferred_geometry =
+    render.CreateShader(TEXT("assets/shaders/deferred_geometry.hlsl"),
+                        (CS350::Shader::InputLayout_POS | CS350::Shader::InputLayout_NOR | CS350::Shader::InputLayout_TEX)
+    );
+
+  CS350::Render_DX11::UniformID per_object = render.CreateUniform(per_object_data);
+  CS350::Render_DX11::UniformID per_frame = render.CreateUniform(per_frame_data);
+
+  CS350::Render_DX11::TextureID composited_texture = render.CreateRenderTexture(os.GetWidth(), os.GetHeight());
+
+  CS350::Render_DX11::ShaderID line_shader =
+  render.CreateShader(TEXT("assets/shaders/line.hlsl"),
+                      (CS350::Shader::InputLayout_POS | CS350::Shader::InputLayout_NOR),
+                      true
+  );
+
+  //// skymap_shader
+  //CreateShader(TEXT("assets/shaders/skymap.hlsl"),
+  //             (Shader::InputLayout_POS | Shader::InputLayout_NOR | Shader::InputLayout_TEX)
+  //);
 
   while (!os.ShouldClose())
   {
@@ -112,7 +143,7 @@ int main()
     }
     cam_distance = std::clamp(cam_distance - 0.15f * mouse_data.scroll_dy, 0.05f, 20.0f);
 
-    dx::XMStoreFloat3(&cam_position, dx::XMVector3Transform(dx::XMVectorSet(0, 0, cam_distance, 0.0f), dx::XMMatrixRotationRollPitchYaw(cam_pitch, cam_yaw, 0.0f)));
+    dx::XMStoreFloat4(&cam_position, dx::XMVector3Transform(dx::XMVectorSet(0, 0, cam_distance, 0.0f), dx::XMMatrixRotationRollPitchYaw(cam_pitch, cam_yaw, 0.0f)));
 
     // Start the Dear ImGui frame
     ImGui_ImplDX11_NewFrame();
@@ -168,28 +199,44 @@ int main()
     world_matrix *= dx::XMMatrixTranslation(model_position.x, model_position.y, model_position.z);
 
     cam_projection_matrix = dx::XMMatrixPerspectiveFovRH(dx::XMConvertToRadians(cam_fov), (float)screen_width / (float)screen_height, 0.05f, 1000.0f);
-    cam_view_matrix = dx::XMMatrixLookAtRH(dx::XMLoadFloat3(&cam_position), dx::XMLoadFloat3(&cam_target), cam_up);
-    //dx::XMStoreFloat4x4(&(render.per_object.World), world_matrix);
-    //dx::XMStoreFloat4x4(&(render.per_object.NormalWorld), CS350::InverseTranspose(world_matrix));
-    //render.per_object.Color = model_color;
+    cam_view_matrix = dx::XMMatrixLookAtRH(dx::XMLoadFloat4(&cam_position), dx::XMLoadFloat3(&cam_target), cam_up);
+    dx::XMStoreFloat4x4(&(per_object_data.World), world_matrix);
+    dx::XMStoreFloat4x4(&(per_object_data.WorldNormal), CS350::InverseTranspose(world_matrix));
+    per_object_data.Color = { model_color.x, model_color.y, model_color.z, 1.0f };
 
-    //dx::XMStoreFloat4x4(&(render.per_frame_phong.ViewProjection), cam_view_matrix * cam_projection_matrix);
-    //render.per_frame_phong.CameraPosition = cam_position;
+    dx::XMStoreFloat4x4(&(per_frame_data.ViewProjection), cam_view_matrix * cam_projection_matrix);
+    per_frame_data.CameraPosition = cam_position;
 
-    //render.per_frame_line.ViewProjection = render.per_frame_phong.ViewProjection;
+    render.UpdateUniform(per_frame, per_frame_data);
+    render.UpdateUniform(per_object, per_object_data);
 
     // render scene
     render.SetClearColor(clear_color);
     render.RenderToFramebuffer(framebuffer);
     render.ClearFramebuffer(framebuffer);
 
-    render.SetClearColor({0.15f, 0.15f, 0.15f});
+    render.GetD3D11Context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    render.UseShader(deferred_geometry);
+    render.UseTexture(metal_texture, 0);
+    render.UseMesh(sphere_mesh_d3d);
+    render.UseUniform(per_object, 0);
+    render.UseUniform(per_frame, 1);
+    render.Draw();
+
+    //render.RenderTo(composited_texture);
+    //render.UseShader(deferred_lighting);
+    //render.UseFramebufferTexture(framebuffer, 0, 0);
+    //render.UseFramebufferTexture(framebuffer, 1, 1);
+    //render.UseMesh(fullscreen_quad);
+    //render.Draw();
+
+    render.SetClearColor({ 0.15f, 0.15f, 0.15f });
     render.RenderToFramebuffer(CS350::Render_DX11::Default);
-    render.ClearDefaultFramebuffer();
+    render.ClearFramebuffer(CS350::Render_DX11::Default);
 
     ImGui::Begin("Viewport", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
     {
-      ImGui::Image(render.GetFramebufferTexture(framebuffer, 0), { (float)os.GetWidth(), (float)os.GetHeight() });
+      ImGui::Image(render.DebugGetFramebufferTexture(framebuffer, 0), { (float)os.GetWidth(), (float)os.GetHeight() });
     }
     ImGui::End();
 
@@ -197,7 +244,7 @@ int main()
     for (int i = 0; i < render.GetFramebufferTargetCount(framebuffer); ++i)
     {
       ImGui::Text("Texture %i", i);
-      ImGui::Image(render.GetFramebufferTexture(framebuffer, i), {os.GetWidth() * 0.15f, os.GetHeight() * 0.15f});
+      ImGui::Image(render.DebugGetFramebufferTexture(framebuffer, i), { os.GetWidth() * 0.15f, os.GetHeight() * 0.15f });
     }
     ImGui::End();
 

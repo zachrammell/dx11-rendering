@@ -23,7 +23,7 @@ Mesh_D3D::Mesh_D3D(Render_DX11& render, Mesh const& m)
   {
     D3D11_BUFFER_DESC vertex_buffer_descriptor
     {
-      sizeof(Mesh::Vertex) * vertex_count_,
+      UINT(sizeof(Mesh::Vertex) * vertex_count_),
       D3D11_USAGE_DYNAMIC,
       D3D11_BIND_VERTEX_BUFFER,
       D3D11_CPU_ACCESS_WRITE, 0, 0
@@ -37,7 +37,7 @@ Mesh_D3D::Mesh_D3D(Render_DX11& render, Mesh const& m)
   {
     D3D11_BUFFER_DESC index_buffer_descriptor
     {
-      sizeof(Mesh::Index) * index_count_,
+      UINT(sizeof(Mesh::Index) * index_count_),
       D3D11_USAGE_DEFAULT,
       D3D11_BIND_INDEX_BUFFER,
       0, 0, 0
@@ -55,7 +55,7 @@ Mesh_D3D::Mesh_D3D(Render_DX11& render, std::vector<Mesh::Vertex> const& vertex_
 {
   D3D11_BUFFER_DESC vertex_buffer_descriptor
   {
-    sizeof(Mesh::Vertex) * vertex_count_,
+    UINT(sizeof(Mesh::Vertex) * vertex_count_),
     D3D11_USAGE_DEFAULT,
     D3D11_BIND_VERTEX_BUFFER,
     0, 0, 0

@@ -6,7 +6,7 @@ File Name: render_dx11.cpp
 Purpose: DX11 layer
 Language: C++
 Platform: Windows 8.1+, MSVC v142, DirectX 11 compatible graphics hardware
-Project: zach.rammell_CS300_1
+Project: zach.rammell_CS350_1
 Author: Zach Rammell, zach.rammell
 Creation date: 10/2/20
 End Header --------------------------------------------------------*/
@@ -18,7 +18,6 @@ End Header --------------------------------------------------------*/
 
 #include "math_helper.h"
 #include "os_win32.h"
-#include "globals.h"
 
 namespace dx = DirectX;
 
@@ -37,10 +36,10 @@ Render_DX11::Render_DX11(OS_Win32& os)
   HRESULT hr;
   DXGI_MODE_DESC buffer_description
   {
-    static_cast<UINT>(os.GetWidth()),
-    static_cast<UINT>(os.GetHeight()),
+    UINT(os.GetWidth()),
+    UINT(os.GetHeight()),
     // TODO: get monitor refresh rate
-    {60, 1},
+    {},
     DXGI_FORMAT_R8G8B8A8_UNORM,
     DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED,
     DXGI_MODE_SCALING_UNSPECIFIED
@@ -54,7 +53,8 @@ Render_DX11::Render_DX11(OS_Win32& os)
     1,
     os.GetWindowHandle(),
     true,
-    DXGI_SWAP_EFFECT_DISCARD
+    DXGI_SWAP_EFFECT_SEQUENTIAL,
+    0
   };
 
   hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_DEBUG, nullptr, 0, D3D11_SDK_VERSION,
@@ -90,20 +90,6 @@ Render_DX11::Render_DX11(OS_Win32& os)
     };
     device_context_->RSSetViewports(1, &viewport_);
   }
-
-  // deferred_geometry
-  CreateShader(TEXT("assets/shaders/deferred_geometry.hlsl"),
-               (Shader::InputLayout_POS | Shader::InputLayout_NOR | Shader::InputLayout_TEX)
-  );
-
-  // line_shader
-  CreateShader(TEXT("assets/shaders/line.hlsl"),
-               (Shader::InputLayout_POS | Shader::InputLayout_NOR),
-               true);
-
-  // skymap_shader
-  CreateShader(TEXT("assets/shaders/skymap.hlsl"),
-               (Shader::InputLayout_POS | Shader::InputLayout_NOR | Shader::InputLayout_TEX));
 
   D3D11_SAMPLER_DESC sampler_desc{};
   sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -177,6 +163,15 @@ void Render_DX11::UseShader(ShaderID id)
   GetD3D11Context()->VSSetShader(shader.vertex_shader, nullptr, 0);
   GetD3D11Context()->PSSetShader(shader.pixel_shader, nullptr, 0);
   GetD3D11Context()->GSSetShader(shader.geometry_shader, nullptr, 0);
+  GetD3D11Context()->IASetInputLayout(shader.GetInputLayout());
+}
+
+void Render_DX11::UseUniform(UniformID uniform, int slot)
+{
+  ID3D11Buffer* buffer = constant_buffers_[uniform];
+  GetD3D11Context()->VSSetConstantBuffers(slot, 1, &buffer);
+  GetD3D11Context()->PSSetConstantBuffers(slot, 1, &buffer);
+  GetD3D11Context()->GSSetConstantBuffers(slot, 1, &buffer);
 }
 
 Render_DX11::TextureID Render_DX11::CreateTexture(Image const& image)
@@ -224,6 +219,7 @@ Render_DX11::MeshID Render_DX11::CreateMesh(std::vector<Mesh::Vertex> const& ver
 
 void Render_DX11::UseMesh(MeshID mesh)
 {
+  bound_mesh = mesh;
   Mesh_D3D& mesh_d3d = meshes_[mesh];
   UINT vertex_stride = sizeof(Mesh::Vertex);
   UINT vertex_offset = 0;
@@ -279,6 +275,10 @@ void Render_DX11::RenderToFramebuffer(FramebufferID framebuffer)
 
 void Render_DX11::ClearFramebuffer(FramebufferID framebuffer)
 {
+  if (framebuffer == Default)
+  {
+    return ClearDefaultFramebuffer();
+  }
   Framebuffer& fb = framebuffers_[framebuffer];
   GetD3D11Context()->RSSetViewports(1, &(fb.viewport_));
   for (int i = 0; i < fb.GetTargetCount() - 1; ++i)
@@ -311,7 +311,7 @@ ID3D11DeviceContext* Render_DX11::GetD3D11Context() const
   return device_context_.get();
 }
 
-ID3D11ShaderResourceView* Render_DX11::GetFramebufferTexture(FramebufferID framebuffer, int target)
+ID3D11ShaderResourceView* Render_DX11::DebugGetFramebufferTexture(FramebufferID framebuffer, int target)
 {
   return framebuffers_[framebuffer].resource_views_[target];
 }
