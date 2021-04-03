@@ -2,10 +2,12 @@
 
 #include "point.h"
 #include "ray.h"
-#include "box.h"
 
 namespace CS350
 {
+
+template<int Dim>
+struct Box;
 
 template<int Dim>
 struct Sphere

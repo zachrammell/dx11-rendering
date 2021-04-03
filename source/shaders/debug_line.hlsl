@@ -46,7 +46,7 @@ float4 ps_main(vs_out input) : SV_TARGET
 void gs_main(point vs_out input[1], inout LineStream<vs_out> stream_out)
 {
   vs_out output = (vs_out)0;
-  output.position_clip = input[0].position_clip + 0.05f * input[0].normal_clip;
+  output.position_clip = input[0].position_clip + normalize(input[0].normal_clip);
 
   stream_out.Append(input[0]);
   stream_out.Append(output);

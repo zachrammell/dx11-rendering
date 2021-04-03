@@ -27,11 +27,12 @@ End Header --------------------------------------------------------*/
 #include <imgui_impl_win32.h>
 #include <iostream>
 
-
 #include "structures/per_object.h"
 #include "structures/per_frame.h"
 
+#include "geometry/box.h"
 #include "math_helper.h"
+
 namespace fs = std::filesystem;
 namespace dx = DirectX;
 
@@ -46,7 +47,7 @@ int main()
   CS350::Render_DX11 render{ os };
   os.Show();
 
-  dx::XMFLOAT3 clear_color{ 0.15f, 0.15f, 0.15f };
+  float3 clear_color{ 0.15f, 0.15f, 0.15f };
 
   dx::XMMATRIX cam_view_matrix;
   dx::XMMATRIX cam_projection_matrix;
@@ -97,6 +98,80 @@ int main()
 
   CS350::Mesh sphere_mesh = CS350::Mesh::GenerateSphere(16, 16);
   CS350::Image metal_image = CS350::Image("assets/textures/metal_roof_diff_512x512.png");
+
+  fs::path powerplant_path{ "assets/models/powerplant" };
+  std::string bounds_filename{ "bounds.txt" };
+  fs::path bounds_file_path = powerplant_path/bounds_filename;
+
+  std::vector<CS350::Box<3>> bounds;
+  if (fs::exists(bounds_file_path))
+  {
+    std::ifstream bounds_file{ bounds_file_path };
+    int bound_count = std::count(std::istreambuf_iterator<char>(bounds_file),
+                                         std::istreambuf_iterator<char>(), '\n');
+    bounds_file.seekg(0);
+    bounds.reserve(bound_count);
+    for (int i = 0; i < bound_count; ++i)
+    {
+      float discard_;
+      CS350::Point<3> mn, mx;
+      bounds_file >> mn.x >> mn.y >> mn.z >> discard_;
+      bounds_file >> mx.x >> mx.y >> mx.z >> discard_;
+
+      bounds.emplace_back(mn, mx);
+    }
+  }
+
+  int the_section_to_load = 2;
+
+  std::string section_file{ "Section" };
+  section_file.append(std::to_string(the_section_to_load));
+  section_file.append(".txt");
+  fs::path section_file_path = powerplant_path/section_file;
+
+  std::vector<CS350::Mesh> section_models;
+  if (fs::exists(section_file_path))
+  {
+    std::ifstream section_file{ section_file_path };
+    int section_model_count = std::count(std::istreambuf_iterator<char>(section_file),
+                                         std::istreambuf_iterator<char>(), '\n');
+    section_file.seekg(0);
+    section_models.reserve(section_model_count);
+    for (int i = 0; i < section_model_count; ++i)
+    {
+      std::string section_model_path;
+      std::getline(section_file, section_model_path);
+      
+      if (fs::exists(powerplant_path/section_model_path))
+      {
+        section_models.emplace_back(CS350::Mesh::Load((powerplant_path/section_model_path).generic_string().c_str()));
+      }
+    }
+  }
+
+  // normalize mesh based on its bounds
+  {
+    int i = the_section_to_load - 1;
+    float3 center = CS350::avg(bounds[i].mn, bounds[i].mx);
+    const float max_distance = length(bounds[i].mx - center);
+
+    float4x4 norm_mtx = make_float4x4_translation(-center) * make_float4x4_scale(1.0f / max_distance);
+
+    for (CS350::Mesh& model : section_models)
+    {
+      for (CS350::Mesh::Vertex& v : model.vertex_buffer)
+      {
+        v.position = transform(v.position, norm_mtx);
+      }
+    }
+  }
+
+  std::vector<CS350::Render_DX11::MeshID> section_meshes;
+  section_meshes.reserve(section_models.size());
+  for (CS350::Mesh const& section_model : section_models)
+  {
+    section_meshes.emplace_back(render.CreateMesh(section_model));
+  }
 
   CS350::Render_DX11::TextureID metal_texture = render.CreateTexture(metal_image);
   CS350::Render_DX11::FramebufferID framebuffer = render.CreateFramebuffer(screen_width, screen_height, 4);
@@ -253,19 +328,13 @@ int main()
     render.UseUniform(per_object, 0);
     render.UseUniform(per_frame, 1);
 
-    for (auto const& section : loaded_sections)
+    for (CS350::Render_DX11::MeshID section_mesh : section_meshes)
     {
-      if (section.enabled)
-      {
-        // RenderSection
-        for (uint32_t i = 0; i < section.count; ++i)
-        {
-          render.UseMesh(all_plant_meshes[section.begin + i]);
-          render.Draw();
-        }
-      }
+      render.UseMesh(section_mesh);
+      render.Draw();
     }
 
+    render.SetClearColor(clear_color);
     render.RenderTo(composited_texture);
     render.ClearRenderTexture(composited_texture);
 
@@ -281,7 +350,11 @@ int main()
     // draw debug objects
     render.SetRenderMode(CS350::Render_DX11::RenderMode::WIREFRAME);
     render.UseShader(debug_wireframe);
-    render.Draw();
+    for (CS350::Render_DX11::MeshID section_mesh : section_meshes)
+    {
+      //render.UseMesh(section_mesh);
+      //render.Draw();
+    }
 
     if (draw_vertex_normals)
     {
@@ -289,17 +362,10 @@ int main()
       per_object_data.Color = { vertex_normals_color, 1.0f };
       render.UpdateUniform(per_object, per_object_data);
 
-      for (auto const& section : loaded_sections)
+      for (CS350::Render_DX11::MeshID section_mesh : section_meshes)
       {
-        if (section.enabled)
-        {
-          // RenderSection
-          for (uint32_t i = 0; i < section.count; ++i)
-          {
-            render.UseMesh(all_plant_meshes[section.begin + i]);
-            render.Draw();
-          }
-        }
+        render.UseMesh(section_mesh);
+        render.Draw();
       }
     }
 
