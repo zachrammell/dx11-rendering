@@ -48,7 +48,7 @@ private:
   ID3DBlob* vertex_shader_buffer;
   ID3DBlob* pixel_shader_buffer;
   ID3DBlob* geometry_shader_buffer;
-  ID3D11InputLayout* vertex_shader_input_layout;
+  ID3D11InputLayout* vertex_shader_input_layout = nullptr;
 };
 
 }

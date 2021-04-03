@@ -17,15 +17,16 @@ End Header --------------------------------------------------------*/
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
 
-#include <iostream>
-#include <system_error>
+#include <fstream>
+#include <thread>
+#include <future>
 #include <filesystem>
 
 #include <imgui.h>
 #include <imgui_impl_dx11.h>
 #include <imgui_impl_win32.h>
+#include <iostream>
 
-#include <assimp/Importer.hpp>
 
 #include "structures/per_object.h"
 #include "structures/per_frame.h"
@@ -41,7 +42,7 @@ int screen_width = 1280, screen_height = 720;
 
 int main()
 {
-  CS350::OS_Win32 os{ TEXT("CS300 Project - Zach Rammell"), screen_width, screen_height };
+  CS350::OS_Win32 os{ TEXT("CS350 Project 3 - Zach Rammell"), screen_width, screen_height };
   CS350::Render_DX11 render{ os };
   os.Show();
 
@@ -79,21 +80,23 @@ int main()
   float model_scale = 1.0f;
 
   bool draw_vertex_normals = false;
-  bool draw_face_normals = false;
 
-  float cam_distance = 5.0f;
+  float cam_distance = 1.0f;
   float cam_fov = 90.0f;
   float cam_yaw = 0.0f, cam_pitch = 0.0f;
   float mouse_sensitivity = 0.005f;
 
+  int selected_view = -1;
+
+  bool loading_dialog = true;
+  bool section_selector_open = true;
+
   per_object per_object_data;
   per_frame per_frame_data;
+  per_frame_data.AmbientColor = float4(0.055f, 0.02f, 0.008f, 1.0f);
 
-  CS350::Mesh sphere_mesh = CS350::GenerateSphereMesh(8, 8);
+  CS350::Mesh sphere_mesh = CS350::Mesh::GenerateSphere(16, 16);
   CS350::Image metal_image = CS350::Image("assets/textures/metal_roof_diff_512x512.png");
-
-  CS350::Render_DX11::MeshID sphere_mesh_d3d = render.CreateMesh(sphere_mesh);
-  CS350::Render_DX11::MeshID sphere_normals_mesh_d3d = render.CreateMesh(sphere_mesh.face_center_vertex_buffer);
 
   CS350::Render_DX11::TextureID metal_texture = render.CreateTexture(metal_image);
   CS350::Render_DX11::FramebufferID framebuffer = render.CreateFramebuffer(screen_width, screen_height, 4);
@@ -107,16 +110,26 @@ int main()
 
   CS350::Render_DX11::TextureID composited_texture = render.CreateRenderTexture(os.GetWidth(), os.GetHeight());
 
-  CS350::Render_DX11::ShaderID line_shader =
-  render.CreateShader(TEXT("assets/shaders/line.hlsl"),
-                      (CS350::Shader::InputLayout_POS | CS350::Shader::InputLayout_NOR),
-                      true
-  );
+  CS350::Render_DX11::ShaderID deferred_lighting =
+    render.CreateShader(TEXT("assets/shaders/deferred_lighting.hlsl"),
+                        (CS350::Shader::InputLayout_POS | CS350::Shader::InputLayout_NOR | CS350::Shader::InputLayout_TEX)
+    );
 
-  //// skymap_shader
-  //CreateShader(TEXT("assets/shaders/skymap.hlsl"),
-  //             (Shader::InputLayout_POS | Shader::InputLayout_NOR | Shader::InputLayout_TEX)
-  //);
+  CS350::Render_DX11::ShaderID fsq =
+    render.CreateShader(TEXT("assets/shaders/fullscreen_quad_render.hlsl"),
+                        0
+    );
+
+  CS350::Render_DX11::ShaderID debug_line =
+    render.CreateShader(TEXT("assets/shaders/debug_line.hlsl"),
+                        (CS350::Shader::InputLayout_POS | CS350::Shader::InputLayout_NOR),
+                        true
+    );
+
+  CS350::Render_DX11::ShaderID debug_wireframe =
+    render.CreateShader(TEXT("assets/shaders/debug_wireframe.hlsl"),
+                        (CS350::Shader::InputLayout_POS | CS350::Shader::InputLayout_NOR | CS350::Shader::InputLayout_TEX)
+    );
 
   while (!os.ShouldClose())
   {
@@ -141,7 +154,7 @@ int main()
       cam_pitch = std::clamp(cam_pitch - mouse_data.dy * mouse_sensitivity, -dx::XM_PIDIV2 + 0.05f, dx::XM_PIDIV2 - 0.05f);
       cam_yaw -= mouse_data.dx * mouse_sensitivity;
     }
-    cam_distance = std::clamp(cam_distance - 0.15f * mouse_data.scroll_dy, 0.05f, 20.0f);
+    cam_distance = std::clamp(cam_distance - 0.15f * mouse_data.scroll_dy, 0.05f, 10.0f);
 
     dx::XMStoreFloat4(&cam_position, dx::XMVector3Transform(dx::XMVectorSet(0, 0, cam_distance, 0.0f), dx::XMMatrixRotationRollPitchYaw(cam_pitch, cam_yaw, 0.0f)));
 
@@ -161,7 +174,15 @@ int main()
 
     if (ImGui::BeginMainMenuBar())
     {
-      ImGui::MenuItem("File");
+      if (ImGui::BeginMenu("File"))
+      {
+        ImGui::EndMenu();
+      }
+      if (ImGui::BeginMenu("View"))
+      {
+        ImGui::MenuItem("Section Selector Window", 0, &section_selector_open);
+        ImGui::EndMenu();
+      }
       ImGui::EndMainMenuBar();
     }
 
@@ -170,11 +191,6 @@ int main()
     if (draw_vertex_normals)
     {
       ImGui::ColorEdit3("Vertex Normals Color", &(vertex_normals_color.x));
-    }
-    ImGui::Checkbox("Show Face Normals", &draw_face_normals);
-    if (draw_face_normals)
-    {
-      ImGui::ColorEdit3("Face Normals Color", &(face_normals_color.x));
     }
     ImGui::ColorEdit3("Clear Color", &clear_color.x);
 
@@ -187,11 +203,25 @@ int main()
     }
     if (ImGui::CollapsingHeader("Camera Properties"))
     {
-      ImGui::DragFloat("Camera Distance", &cam_distance, 0.1f, 0.05f, 20.0f);
+      ImGui::DragFloat("Camera Distance", &cam_distance, 0.15f, 0.05f, 10.f);
       ImGui::DragFloat3("Camera Position", &(cam_position.x));
       ImGui::DragFloat("Camera FOV", &cam_fov, 0.1f, 20.0f, 130.0f);
     }
     ImGui::End();
+
+    //if (section_selector_open)
+    //{
+    //  ImGui::Begin("Section Selector");
+    //  int i = 0;
+    //  for (LoadedSection& loaded_section : loaded_sections)
+    //  {
+    //    std::string name("Enable Section ");
+    //    name += std::to_string(i);
+    //    ImGui::Checkbox(name.c_str(), &loaded_section.enabled);
+    //    ++i;
+    //  }
+    //  ImGui::End();
+    //}
 
     world_matrix = dx::XMMatrixIdentity();
     world_matrix *= dx::XMMatrixScaling(model_scale, model_scale, model_scale);
@@ -202,49 +232,106 @@ int main()
     cam_view_matrix = dx::XMMatrixLookAtRH(dx::XMLoadFloat4(&cam_position), dx::XMLoadFloat3(&cam_target), cam_up);
     dx::XMStoreFloat4x4(&(per_object_data.World), world_matrix);
     dx::XMStoreFloat4x4(&(per_object_data.WorldNormal), CS350::InverseTranspose(world_matrix));
-    per_object_data.Color = { model_color.x, model_color.y, model_color.z, 1.0f };
+    per_object_data.Color = { model_color, 1.0f };
 
-    dx::XMStoreFloat4x4(&(per_frame_data.ViewProjection), cam_view_matrix * cam_projection_matrix);
+    dx::XMStoreFloat4x4(&(per_frame_data.View), cam_view_matrix);
+    dx::XMStoreFloat4x4(&(per_frame_data.Projection), cam_projection_matrix);
     per_frame_data.CameraPosition = cam_position;
 
     render.UpdateUniform(per_frame, per_frame_data);
     render.UpdateUniform(per_object, per_object_data);
 
     // render scene
-    render.SetClearColor(clear_color);
+    render.SetClearColor({0, 0, 0, 0});
     render.RenderToFramebuffer(framebuffer);
     render.ClearFramebuffer(framebuffer);
 
     render.GetD3D11Context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    render.SetRenderMode(CS350::Render_DX11::RenderMode::FILL);
     render.UseShader(deferred_geometry);
     render.UseTexture(metal_texture, 0);
-    render.UseMesh(sphere_mesh_d3d);
     render.UseUniform(per_object, 0);
     render.UseUniform(per_frame, 1);
+
+    for (auto const& section : loaded_sections)
+    {
+      if (section.enabled)
+      {
+        // RenderSection
+        for (uint32_t i = 0; i < section.count; ++i)
+        {
+          render.UseMesh(all_plant_meshes[section.begin + i]);
+          render.Draw();
+        }
+      }
+    }
+
+    render.RenderTo(composited_texture);
+    render.ClearRenderTexture(composited_texture);
+
+    render.UseShader(deferred_lighting);
+    for (int i = 0; i < 3; ++i)
+    {
+      render.UseFramebufferTexture(framebuffer, i, i);
+    }
+    render.UseMesh(CS350::Render_DX11::None);
+    render.GetD3D11Context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+    render.GetD3D11Context()->Draw(4, 0);
+
+    // draw debug objects
+    render.SetRenderMode(CS350::Render_DX11::RenderMode::WIREFRAME);
+    render.UseShader(debug_wireframe);
     render.Draw();
 
-    //render.RenderTo(composited_texture);
-    //render.UseShader(deferred_lighting);
-    //render.UseFramebufferTexture(framebuffer, 0, 0);
-    //render.UseFramebufferTexture(framebuffer, 1, 1);
-    //render.UseMesh(fullscreen_quad);
-    //render.Draw();
+    if (draw_vertex_normals)
+    {
+      render.UseShader(debug_line);
+      per_object_data.Color = { vertex_normals_color, 1.0f };
+      render.UpdateUniform(per_object, per_object_data);
+
+      for (auto const& section : loaded_sections)
+      {
+        if (section.enabled)
+        {
+          // RenderSection
+          for (uint32_t i = 0; i < section.count; ++i)
+          {
+            render.UseMesh(all_plant_meshes[section.begin + i]);
+            render.Draw();
+          }
+        }
+      }
+    }
 
     render.SetClearColor({ 0.15f, 0.15f, 0.15f });
     render.RenderToFramebuffer(CS350::Render_DX11::Default);
     render.ClearFramebuffer(CS350::Render_DX11::Default);
 
-    ImGui::Begin("Viewport", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+    ImGui::Begin("Framebuffer");
+    ImVec2 const target_size = { os.GetWidth() * 0.15f, os.GetHeight() * 0.15f };
+    for (int i = 0; i < render.GetFramebufferTargetCount(framebuffer); ++i)
     {
-      ImGui::Image(render.DebugGetFramebufferTexture(framebuffer, 0), { (float)os.GetWidth(), (float)os.GetHeight() });
+      std::string itemid = "##Texture " + std::to_string(i);
+      ImGui::Text("Texture %i", i);
+      if (ImGui::Selectable(itemid.c_str(), i == selected_view, 0, target_size))
+      {
+        if (i == selected_view)
+          selected_view = -1;
+        else
+          selected_view = i;
+      }
+      ImGui::SameLine();
+      ImGui::SetCursorPosX(ImGui::GetCursorPosX() - target_size.x - 8);
+      ImGui::Image(render.DebugGetFramebufferTexture(framebuffer, i), target_size);
     }
     ImGui::End();
 
-    ImGui::Begin("Framebuffer");
-    for (int i = 0; i < render.GetFramebufferTargetCount(framebuffer); ++i)
+    ImGui::Begin("Viewport", nullptr, ImGuiWindowFlags_NoScrollbar);
     {
-      ImGui::Text("Texture %i", i);
-      ImGui::Image(render.DebugGetFramebufferTexture(framebuffer, i), { os.GetWidth() * 0.15f, os.GetHeight() * 0.15f });
+      if (selected_view == -1)
+        ImGui::Image(render.DebugGetTexture(composited_texture), ImGui::GetContentRegionAvail());
+      else
+        ImGui::Image(render.DebugGetFramebufferTexture(framebuffer, selected_view), ImGui::GetContentRegionAvail());
     }
     ImGui::End();
 

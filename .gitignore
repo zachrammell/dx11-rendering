@@ -1,3 +1,9 @@
 # ignore auto-generated Visual Studio artifacts
 .vs/*
 out/*
+
+assets/models/powerplant/
+
+*.exe
+
+submission/

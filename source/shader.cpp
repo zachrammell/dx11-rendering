@@ -14,8 +14,12 @@ End Header --------------------------------------------------------*/
 #include "render_dx11.h"
 
 #include <cassert>
+#include <codecvt>
 #include <d3dcompiler.h>
 #include <iostream>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 namespace CS350
 {
@@ -30,6 +34,13 @@ Shader::Shader(Render_DX11& render, LPCWSTR shader_path, int input_layout, bool 
 #if defined(_DEBUG)
   flags |= D3DCOMPILE_DEBUG;
 #endif
+
+  if (!fs::exists(shader_path))
+  {
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+    std::string message = "Shader file \"" + converter.to_bytes(shader_path) + "\" does not exist.";
+    throw std::runtime_error(message);
+  }
 
   // Compile vertex shader
   hr = D3DCompileFromFile(
@@ -153,42 +164,43 @@ Shader::Shader(Render_DX11& render, LPCWSTR shader_path, int input_layout, bool 
       ++input_element_count;
     }
   }
-  assert(input_element_count > 0);
+  if (input_element_count > 0)
+  {
+    int elements_filled = 0;
+    if (input_layout & InputLayout_POS)
+    {
+      input_element_descriptor[elements_filled] =
+      { "POS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, elements_filled ? D3D11_APPEND_ALIGNED_ELEMENT : 0, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+      ++elements_filled;
+    }
+    if (input_layout & InputLayout_COL)
+    {
+      input_element_descriptor[elements_filled] =
+      { "COL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, elements_filled ? D3D11_APPEND_ALIGNED_ELEMENT : 0, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+      ++elements_filled;
+    }
+    if (input_layout & InputLayout_NOR)
+    {
+      input_element_descriptor[elements_filled] =
+      { "NOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, elements_filled ? D3D11_APPEND_ALIGNED_ELEMENT : 0, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+      ++elements_filled;
+    }
+    if (input_layout & InputLayout_TEX)
+    {
+      input_element_descriptor[elements_filled] =
+      { "TEX", 0, DXGI_FORMAT_R32G32_FLOAT, 0, elements_filled ? D3D11_APPEND_ALIGNED_ELEMENT : 0, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+      ++elements_filled;
+    }
 
-  int elements_filled = 0;
-  if (input_layout & InputLayout_POS)
-  {
-    input_element_descriptor[elements_filled] =
-    { "POS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, elements_filled ? D3D11_APPEND_ALIGNED_ELEMENT : 0, D3D11_INPUT_PER_VERTEX_DATA, 0 };
-    ++elements_filled;
+    hr = render.GetD3D11Device()->CreateInputLayout(
+      input_element_descriptor,
+      input_element_count,
+      vertex_shader_buffer->GetBufferPointer(),
+      vertex_shader_buffer->GetBufferSize(),
+      &vertex_shader_input_layout
+    );
+    assert(SUCCEEDED(hr));
   }
-  if (input_layout & InputLayout_COL)
-  {
-    input_element_descriptor[elements_filled] =
-    { "COL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, elements_filled ? D3D11_APPEND_ALIGNED_ELEMENT : 0, D3D11_INPUT_PER_VERTEX_DATA, 0 };
-    ++elements_filled;
-  }
-  if (input_layout & InputLayout_NOR)
-  {
-    input_element_descriptor[elements_filled] =
-    { "NOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, elements_filled ? D3D11_APPEND_ALIGNED_ELEMENT : 0, D3D11_INPUT_PER_VERTEX_DATA, 0 };
-    ++elements_filled;
-  }
-  if (input_layout & InputLayout_TEX)
-  {
-    input_element_descriptor[elements_filled] =
-    { "TEX", 0, DXGI_FORMAT_R32G32_FLOAT, 0, elements_filled ? D3D11_APPEND_ALIGNED_ELEMENT : 0, D3D11_INPUT_PER_VERTEX_DATA, 0 };
-    ++elements_filled;
-  }
-
-  hr = render.GetD3D11Device()->CreateInputLayout(
-    input_element_descriptor,
-    input_element_count,
-    vertex_shader_buffer->GetBufferPointer(),
-    vertex_shader_buffer->GetBufferSize(),
-    &vertex_shader_input_layout
-  );
-  assert(SUCCEEDED(hr));
 }
 
 }

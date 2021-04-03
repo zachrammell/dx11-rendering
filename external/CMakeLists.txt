@@ -20,10 +20,8 @@ target_link_libraries(IMGUI
   d3dcompiler
 )
 
-set(CMAKE_BUILD_TYPE "Release")
 option(BUILD_SHARED_LIBS OFF)
 option(ASSIMP_INJECT_DEBUG_POSTFIX OFF)
 option(ASSIMP_BUILD_TESTS OFF)
 option(ASSIMP_INSTALL OFF)
 add_subdirectory("assimp")
-unset(CMAKE_BUILD_TYPE)

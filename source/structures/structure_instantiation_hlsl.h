@@ -7,5 +7,6 @@
 #define ENDSTRUCT }
 
 #define FIELD(name, type) EXPAND(type) name
+#define FIELD_ARRAY(name, type, size) EXPAND(type) name [EXPAND(size)]
 
 #endif

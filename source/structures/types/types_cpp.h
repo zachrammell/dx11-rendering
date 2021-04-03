@@ -3,6 +3,6 @@
 
 #include <WindowsNumerics.h>
 
-using namespace winrt::Windows::Foundation::Numerics;
+using namespace Windows::Foundation::Numerics;
 
 #endif

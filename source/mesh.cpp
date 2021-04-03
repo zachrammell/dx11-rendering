@@ -13,8 +13,14 @@ End Header --------------------------------------------------------*/
 
 #include "render_dx11.h"
 
+#include <assimp/cimport.h>
+#include <assimp/postprocess.h>
+#include <assimp/scene.h>
+#include <assimp/mesh.h>
+
 namespace CS350
 {
+
 Mesh_D3D::Mesh_D3D(Render_DX11& render, Mesh const& m)
   : vertex_count_(m.vertex_buffer.size()),
   index_count_(m.index_buffer.size())
@@ -66,6 +72,57 @@ Mesh_D3D::Mesh_D3D(Render_DX11& render, std::vector<Mesh::Vertex> const& vertex_
   assert(SUCCEEDED(hr));
 }
 
+Mesh::PropertyStore const& Mesh::GetPropertyStore()
+{
+  return property_store_;
+}
+
+void Mesh::ProcessNode(aiScene const* scene, aiNode const* node)
+{
+  for (unsigned i = 0; i < node->mNumMeshes; ++i)
+  {
+    ProcessMesh(scene, scene->mMeshes[node->mMeshes[i]]);
+  }
+
+  for (unsigned i = 0; i < node->mNumChildren; ++i)
+  {
+    ProcessNode(scene, node->mChildren[i]);
+  }
+}
+
+void Mesh::ProcessMesh(aiScene const* scene, aiMesh const* mesh)
+{
+  size_t start = vertex_buffer.size(); //start of next mesh in aiScene
+  const bool has_normals = mesh->HasNormals();
+
+  for (unsigned i = 0; i < mesh->mNumVertices; ++i)
+  {
+    auto& mVert = mesh->mVertices[i];
+    float3 norm = float3::zero();
+    if (has_normals)
+    {
+      norm = { mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z };
+    }
+    Vertex vert{ {mVert.x, mVert.y, mVert.z}, norm };
+
+    if (mesh->HasTextureCoords(0))
+    {
+      vert.tex_coord.x = mesh->mTextureCoords[0][i].x;
+      vert.tex_coord.y = mesh->mTextureCoords[0][i].y;
+    }
+
+    vertex_buffer.push_back(vert);
+  }
+  for (unsigned i = 0; i < mesh->mNumFaces; ++i)
+  {
+    aiFace const& face = mesh->mFaces[i];
+    for (unsigned j = 0; j < face.mNumIndices; ++j)
+    {
+      index_buffer.push_back(face.mIndices[j] + start);
+    }
+  }
+}
+
 void Mesh_D3D::Reload(Mesh const& m, Render_DX11& render)
 {
   D3D11_MAPPED_SUBRESOURCE resource;
@@ -76,13 +133,27 @@ void Mesh_D3D::Reload(Mesh const& m, Render_DX11& render)
   render.GetD3D11Context()->Unmap(vertex_buffer_.get(), 0);
 }
 
-Mesh GenerateSphereMesh(int sectorCount, int stackCount)
+Mesh Mesh::Load(char const* filepath)
+{  
+  aiScene const* scene = aiImportFileExWithProperties(
+    filepath,
+    aiProcess_Triangulate | aiProcess_ConvertToLeftHanded | aiProcess_GenSmoothNormals | aiProcess_JoinIdenticalVertices
+    | aiProcess_PreTransformVertices,
+    NULL,
+    GetPropertyStore().store_);
+
+  Mesh new_mesh;
+  new_mesh.ProcessNode(scene, scene->mRootNode);
+  return new_mesh;
+}
+
+Mesh Mesh::GenerateSphere(int sectorCount, int stackCount)
 {
   using namespace DirectX;
   Mesh sphere_mesh;
 
-  float x, y, z, xy;                              // vertex position
-  float nx, ny, nz;                               // vertex normal
+  float x, y, z, xy; // vertex position
+  float nx, ny, nz;  // vertex normal
 
   float radius = 1.0f;
 
@@ -101,7 +172,7 @@ Mesh GenerateSphereMesh(int sectorCount, int stackCount)
     // add (sectorCount+1) vertices per stack
     for (int j = 0; j <= sectorCount; ++j)
     {
-      Mesh::Vertex v;
+      Vertex v;
       sectorAngle = j * sectorStep;           // starting from 0 to 2pi
 
       // vertex position (x, y, z)
@@ -135,21 +206,21 @@ Mesh GenerateSphereMesh(int sectorCount, int stackCount)
       // k1 => k2 => k1+1
       if (i != 0)
       {
-        XMVECTOR face_center{ 0, 0, 0 };
-        XMVECTOR face_normal{ 0, 0, 0 };
+        float3 face_center( 0, 0, 0 );
+        float3 face_normal( 0, 0, 0 );
         int indices[3] = { k1, k2, k1 + 1 };
         for (int k = 0; k < 3; ++k)
         {
           sphere_mesh.index_buffer.push_back(indices[k]);
-          face_center += XMLoadFloat3(&(sphere_mesh.vertex_buffer[indices[k]].position));
-          face_normal += XMLoadFloat3(&(sphere_mesh.vertex_buffer[indices[k]].normal));
+          face_center += sphere_mesh.vertex_buffer[indices[k]].position;
+          face_normal += sphere_mesh.vertex_buffer[indices[k]].normal;
         }
         face_center /= 3;
-        XMVector3Normalize(face_normal);
+        face_normal = normalize(face_normal);
 
-        Mesh::Vertex face_vertex;
-        XMStoreFloat3(&(face_vertex.position), face_center);
-        XMStoreFloat3(&(face_vertex.normal), face_normal);
+        Vertex face_vertex;
+        face_vertex.position = face_center;
+        face_vertex.normal = face_normal;
 
         sphere_mesh.face_center_vertex_buffer.push_back(face_vertex);
       }
@@ -167,7 +238,7 @@ Mesh GenerateSphereMesh(int sectorCount, int stackCount)
   return sphere_mesh;
 }
 
-Mesh GenerateCircleMesh(int segments)
+Mesh Mesh::GenerateCircle(int segments)
 {
   using namespace DirectX;
   Mesh circle_mesh;
@@ -176,12 +247,23 @@ Mesh GenerateCircleMesh(int segments)
 
   for (int i = 0; i < segments + 1; ++i)
   {
-    Mesh::Vertex v{};
+    Vertex v{};
     v.position = { sin(static_cast<float>(i) / segments * XM_2PI), 0,  cos(static_cast<float>(i) / segments * XM_2PI) };
     circle_mesh.vertex_buffer.push_back(v);
   }
 
   return circle_mesh;
+}
+
+Mesh::PropertyStore::PropertyStore()
+{
+  store_ = aiCreatePropertyStore();
+  aiSetImportPropertyInteger(store_, "PP_PTV_NORMALIZE", 0);
+}
+
+Mesh::PropertyStore::~PropertyStore()
+{
+  aiReleasePropertyStore(store_);
 }
 
 }

@@ -43,12 +43,18 @@ public:
     None = uint32_t(-1),
     Default = uint32_t(-2)
   };
+
+  enum class RenderMode
+  {
+    FILL,
+    WIREFRAME
+  };
 public:
   Render_DX11(OS_Win32& os);
   ~Render_DX11();
 
-  void ClearDefaultFramebuffer();
   void SetClearColor(DirectX::XMFLOAT3 c);
+  void SetClearColor(DirectX::XMFLOAT4 c);
 
   void Present();
   void ResizeFramebuffer(OS_Win32 const& os);
@@ -99,6 +105,7 @@ public:
 
   TextureID CreateRenderTexture(int width, int height);
   void RenderTo(TextureID render_texture);
+  void ClearRenderTexture(TextureID render_texture);
 
   MeshID CreateMesh(Mesh const& m);
   MeshID CreateMesh(std::vector<Mesh::Vertex> const& vertex_buffer);
@@ -110,13 +117,16 @@ public:
   void ClearFramebuffer(FramebufferID framebuffer);
   void UseFramebufferTexture(FramebufferID framebuffer, int target, int slot);
 
+  void SetRenderMode(RenderMode render_mode);
+
   void Draw();
+
+  /* stupid temporary hack section of the API */
 
   ID3D11Device* GetD3D11Device() const;
   ID3D11DeviceContext* GetD3D11Context() const;
 
-  /* stupid temporary hack section of the API */
-
+  ID3D11ShaderResourceView* DebugGetTexture(TextureID texture);
   ID3D11ShaderResourceView* DebugGetFramebufferTexture(FramebufferID framebuffer, int target);
 
 private: /* ==== Raw DirectX resources ==== */
@@ -130,6 +140,7 @@ private: /* ==== Raw DirectX resources ==== */
 
   winrt::com_ptr<ID3D11DepthStencilState> depth_stencil_state_;
   winrt::com_ptr<ID3D11RasterizerState> rasterizer_state_;
+  winrt::com_ptr<ID3D11RasterizerState> rasterizer_state_wireframe_;
   winrt::com_ptr<ID3D11SamplerState> sampler_state_;
   std::vector<ID3D11Buffer*> constant_buffers_;
 
@@ -171,6 +182,8 @@ private: /* ==== Encapsulated DirectX resources ==== */
 
   MeshID bound_mesh = None;
 
+  RenderMode render_mode_ = RenderMode::FILL;
+
   /* internal helpers */
 
   void SetupViewport(OS_Win32 const& os);
@@ -180,6 +193,7 @@ private: /* ==== Encapsulated DirectX resources ==== */
   void CreateRenderTarget();
 
   Texture* TextureFromFramebuffer(FramebufferID framebuffer, int target);
+  void ClearDefaultFramebuffer();
 };
 
 }

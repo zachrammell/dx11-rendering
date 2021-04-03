@@ -27,7 +27,8 @@ struct vs_in
 struct vs_out
 {
   float4 position_clip : SV_POSITION; // required output of VS
-  float4 position_world : TEXCOORD0;
+  float4 position_view : TEXCOORD0;   // as texcoord for interpolation
+  float4 position_world : TEXCOORD2;
   float2 uv : TEXCOORD1;
   float3 normal : COLOR0;
 };
@@ -36,7 +37,8 @@ vs_out vs_main(vs_in input)
 {
   vs_out output;
   output.position_world = mul(obj_data.World, float4(input.position_local, 1.0f));
-  output.position_clip = mul(frame_data.ViewProjection, output.position_world);
+  output.position_view = mul(frame_data.View, output.position_world);
+  output.position_clip = mul(frame_data.Projection, output.position_view);
   output.normal = mul(obj_data.WorldNormal, input.normal);
   output.uv = input.tex_coord;
   return output;
@@ -52,13 +54,12 @@ struct ps_out
 ps_out ps_main(vs_out input) : SV_TARGET
 {
   ps_out output;
-  const float3 view = normalize(frame_data.CameraPosition.xyz - input.position_world.xyz);
   const float3 normal = normalize(input.normal);
 
   float3 diffuse_color = obj_data.Color.rgb;
   float2 uv = input.uv;
 
-  diffuse_color *= TextureDiffuse.Sample(Sampler, uv);
+  //diffuse_color *= TextureDiffuse.Sample(Sampler, uv);
 
   const float3 ambient_color = diffuse_color;
   float3 color = ambient_color;
@@ -67,7 +68,7 @@ ps_out ps_main(vs_out input) : SV_TARGET
   output.color.a = 1.0f;
   output.normal.xyz = normal;
   output.normal.a = 1.0f;
-  output.position = input.position_world;
+  output.position = (input.position_world / 2.0f) + 1.0f;
 
   return output;
 }

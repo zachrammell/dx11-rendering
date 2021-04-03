@@ -17,6 +17,12 @@ End Header --------------------------------------------------------*/
 #include <vector>
 #include <winrt/base.h>
 
+#include <assimp/cimport.h>
+#include <assimp/scene.h>
+#include <assimp/mesh.h>
+
+#include "structures/types/types_cpp.h"
+
 namespace CS350
 {
 
@@ -26,15 +32,33 @@ struct Mesh
 {
   struct Vertex
   {
-    DirectX::XMFLOAT3 position = {};
-    DirectX::XMFLOAT3 normal = {};
-    DirectX::XMFLOAT2 tex_coord = {};
+    float3 position = {};
+    float3 normal = {};
+    float2 tex_coord = {};
   };
   using Index = uint32_t;
 
   std::vector<Vertex> vertex_buffer;
   std::vector<Index>  index_buffer;
   std::vector<Vertex> face_center_vertex_buffer;
+
+  /* Mesh Creation Functions */
+
+  static Mesh Load(char const* filepath);
+  static Mesh GenerateSphere(int sectorCount, int stackCount);
+  static Mesh GenerateCircle(int segments);
+
+private:
+  static inline struct PropertyStore
+  {
+    PropertyStore();
+    ~PropertyStore();
+    aiPropertyStore* store_;
+  } property_store_;
+  static PropertyStore const& GetPropertyStore();
+
+  void ProcessNode(aiScene const* scene, aiNode const* node);
+  void ProcessMesh(aiScene const* scene, aiMesh const* mesh);
 };
 
 class Mesh_D3D
@@ -49,9 +73,5 @@ private:
   winrt::com_ptr<ID3D11Buffer> index_buffer_ = nullptr;
   UINT vertex_count_, index_count_;
 };
-
-Mesh GenerateSphereMesh(int sectorCount, int stackCount);
-
-Mesh GenerateCircleMesh(int segments);
 
 }

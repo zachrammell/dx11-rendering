@@ -73,7 +73,16 @@ Render_DX11::Render_DX11(OS_Win32& os)
 
   hr = device_->CreateRasterizerState(&rasterizer_descriptor, rasterizer_state_.put());
   assert(SUCCEEDED(hr));
-  device_context_->RSSetState(rasterizer_state_.get());
+
+  D3D11_RASTERIZER_DESC rasterizer_descriptor_wireframe
+  {
+    D3D11_FILL_WIREFRAME,
+    D3D11_CULL_NONE,
+    true,
+  };
+
+  hr = device_->CreateRasterizerState(&rasterizer_descriptor_wireframe, rasterizer_state_wireframe_.put());
+  assert(SUCCEEDED(hr));
 
   // set up the default viewport to match the window
   {
@@ -130,6 +139,11 @@ void Render_DX11::SetClearColor(dx::XMFLOAT3 c)
   clear_color_ = {c.x, c.y, c.z, 1.0f};
 }
 
+void Render_DX11::SetClearColor(DirectX::XMFLOAT4 c)
+{
+  clear_color_ = c;
+}
+
 void Render_DX11::Present()
 {
   swap_chain_->Present(1, 0);
@@ -153,12 +167,28 @@ void Render_DX11::ResizeFramebuffer(OS_Win32 const& os)
 
 Render_DX11::ShaderID Render_DX11::CreateShader(LPCWSTR shader_path, int input_layout, bool GS)
 {
-  shaders_.emplace_back(Shader{ *this, shader_path, input_layout, GS });
+  try
+  {
+    shaders_.emplace_back(Shader{ *this, shader_path, input_layout, GS });
+  }
+  catch (std::exception& e)
+  {
+    std::cout << e.what() << std::endl;
+    return None;
+  }
   return ShaderID(shaders_.size() - 1);
 }
 
 void Render_DX11::UseShader(ShaderID id)
 {
+  if (id == None)
+  {
+    GetD3D11Context()->VSSetShader(nullptr, nullptr, 0);
+    GetD3D11Context()->PSSetShader(nullptr, nullptr, 0);
+    GetD3D11Context()->GSSetShader(nullptr, nullptr, 0);
+    GetD3D11Context()->IASetInputLayout(nullptr);
+    return;
+  }
   Shader& shader = shaders_[id];
   GetD3D11Context()->VSSetShader(shader.vertex_shader, nullptr, 0);
   GetD3D11Context()->PSSetShader(shader.pixel_shader, nullptr, 0);
@@ -205,6 +235,13 @@ void Render_DX11::RenderTo(TextureID render_texture)
   GetD3D11Context()->RSSetViewports(1, &render_tex.viewport_);
 }
 
+void Render_DX11::ClearRenderTexture(TextureID render_texture)
+{
+  assert(textures_[render_texture].type == InternalTexture::Type::RenderTexture);
+  RenderTexture const& render_tex = *(RenderTexture*)GetTexture(textures_[render_texture]);
+  GetD3D11Context()->ClearRenderTargetView(render_tex.render_target_view_.get(), &(clear_color_.x));
+}
+
 Render_DX11::MeshID Render_DX11::CreateMesh(Mesh const& m)
 {
   meshes_.emplace_back(Mesh_D3D{ *this, m });
@@ -219,20 +256,28 @@ Render_DX11::MeshID Render_DX11::CreateMesh(std::vector<Mesh::Vertex> const& ver
 
 void Render_DX11::UseMesh(MeshID mesh)
 {
-  bound_mesh = mesh;
-  Mesh_D3D& mesh_d3d = meshes_[mesh];
-  UINT vertex_stride = sizeof(Mesh::Vertex);
-  UINT vertex_offset = 0;
+  if (bound_mesh != mesh)
+  {
+    bound_mesh = mesh;
+    if (mesh == None)
+    {
+      GetD3D11Context()->IASetInputLayout(nullptr);
+      return;
+    }
+    Mesh_D3D& mesh_d3d = meshes_[mesh];
+    UINT vertex_stride = sizeof(Mesh::Vertex);
+    UINT vertex_offset = 0;
 
-  ID3D11Buffer* buffer = mesh_d3d.vertex_buffer_.get();
-  GetD3D11Context()->IASetVertexBuffers(
-    0,
-    1,
-    &buffer,
-    &vertex_stride,
-    &vertex_offset
-  );
-  GetD3D11Context()->IASetIndexBuffer(mesh_d3d.index_buffer_.get(), DXGI_FORMAT_R32_UINT, 0);
+    ID3D11Buffer* buffer = mesh_d3d.vertex_buffer_.get();
+    GetD3D11Context()->IASetVertexBuffers(
+      0,
+      1,
+      &buffer,
+      &vertex_stride,
+      &vertex_offset
+    );
+    GetD3D11Context()->IASetIndexBuffer(mesh_d3d.index_buffer_.get(), DXGI_FORMAT_R32_UINT, 0);
+  }
 }
 
 void Render_DX11::Draw()
@@ -301,6 +346,23 @@ void Render_DX11::UseFramebufferTexture(FramebufferID framebuffer, int target, i
   GetD3D11Context()->PSSetShaderResources(slot, 1, &resource_view);
 }
 
+void Render_DX11::SetRenderMode(RenderMode render_mode)
+{
+  if (render_mode_ != render_mode)
+  {
+    render_mode_ = render_mode;
+    switch (render_mode_)
+    {
+    case RenderMode::FILL:
+      device_context_->RSSetState(rasterizer_state_.get());
+      break;
+    case RenderMode::WIREFRAME:
+      device_context_->RSSetState(rasterizer_state_wireframe_.get());
+      break;
+    }
+  }
+}
+
 ID3D11Device* Render_DX11::GetD3D11Device() const
 {
   return device_.get();
@@ -309,6 +371,11 @@ ID3D11Device* Render_DX11::GetD3D11Device() const
 ID3D11DeviceContext* Render_DX11::GetD3D11Context() const
 {
   return device_context_.get();
+}
+
+ID3D11ShaderResourceView* Render_DX11::DebugGetTexture(TextureID texture)
+{
+  return GetTexture(textures_[texture])->resource_view_.get();
 }
 
 ID3D11ShaderResourceView* Render_DX11::DebugGetFramebufferTexture(FramebufferID framebuffer, int target)
