@@ -53,8 +53,8 @@ public:
   Render_DX11(OS_Win32& os);
   ~Render_DX11();
 
-  void SetClearColor(DirectX::XMFLOAT3 c);
-  void SetClearColor(DirectX::XMFLOAT4 c);
+  void SetClearColor(float3 c);
+  void SetClearColor(float4 c);
 
   void Present();
   void ResizeFramebuffer(OS_Win32 const& os);
