@@ -12,7 +12,11 @@ template<>
 struct Vec<1>
 {
   float x;
-  float operator[](int) const
+  float const& operator[](int) const
+  {
+    return x;
+  }
+  float& operator[](int)
   {
     return x;
   }
@@ -21,7 +25,11 @@ struct Vec<1>
 template<>
 struct Vec<2> : float2
 {
-  float operator[](int i) const
+  float const& operator[](int i) const
+  {
+    return (&x)[i];
+  }
+  float& operator[](int i)
   {
     return (&x)[i];
   }
@@ -30,7 +38,11 @@ struct Vec<2> : float2
 template<>
 struct Vec<3> : float3
 {
-  float operator[](int i) const
+  float const& operator[](int i) const
+  {
+    return (&x)[i];
+  }
+  float& operator[](int i)
   {
     return (&x)[i];
   }
@@ -39,7 +51,11 @@ struct Vec<3> : float3
 template<>
 struct Vec<4> : float4
 {
-  float operator[](int i) const
+  float const& operator[](int i) const
+  {
+    return (&x)[i];
+  }
+  float& operator[](int i)
   {
     return (&x)[i];
   }

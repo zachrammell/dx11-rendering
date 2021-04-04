@@ -11,7 +11,6 @@ template<int Dim>
 struct Box
 {
 private:
-
   std::vector<Slab<Dim>> slabs_;
 public:
   Point<Dim> mn, mx;
@@ -25,7 +24,7 @@ public:
     {
       Vec<Dim> N{};
       N[i] = 1;
-      slabs_.push_back(N, -mn[0], mx[0]);
+      slabs_.emplace_back(N, -mn[0], mx[0]);
     }
   }
 
