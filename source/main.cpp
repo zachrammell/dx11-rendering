@@ -1,4 +1,4 @@
-﻿/* Start Header -------------------------------------------------------
+/* Start Header -------------------------------------------------------
 Copyright (C) 2020 DigiPen Institute of Technology.
 Reproduction or disclosure of this file or its contents without the prior written
 consent of DigiPen Institute of Technology is prohibited.
@@ -27,11 +27,12 @@ End Header --------------------------------------------------------*/
 #include <imgui_impl_win32.h>
 #include <iostream>
 
-
 #include "structures/per_object.h"
 #include "structures/per_frame.h"
 
+#include "geometry/box.h"
 #include "math_helper.h"
+
 namespace fs = std::filesystem;
 namespace dx = DirectX;
 
@@ -42,11 +43,11 @@ int screen_width = 1280, screen_height = 720;
 
 int main()
 {
-  CS350::OS_Win32 os{ TEXT("CS350 Project 1 - Zach Rammell"), screen_width, screen_height };
+  CS350::OS_Win32 os{ TEXT("CS350 Project 3 - Zach Rammell"), screen_width, screen_height };
   CS350::Render_DX11 render{ os };
   os.Show();
 
-  dx::XMFLOAT3 clear_color{ 0.15f, 0.15f, 0.15f };
+  float3 clear_color{ 0.15f, 0.15f, 0.15f };
 
   dx::XMMATRIX cam_view_matrix;
   dx::XMMATRIX cam_projection_matrix;
@@ -297,10 +298,6 @@ int main()
     {
       if (ImGui::BeginMenu("File"))
       {
-        if (ImGui::Button("Loading"))
-        {
-          ImGui::OpenPopup("LoadingDialog", ImGuiPopupFlags_AnyPopup);
-        }
         ImGui::EndMenu();
       }
       if (ImGui::BeginMenu("View"))
@@ -312,7 +309,7 @@ int main()
     }
 
     ImGui::Begin("Scene Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
-    ImGui::Checkbox("Show Vertex Normals [WARNING: VERY SLOW]", &draw_vertex_normals);
+    ImGui::Checkbox("Show Vertex Normals", &draw_vertex_normals);
     if (draw_vertex_normals)
     {
       ImGui::ColorEdit3("Vertex Normals Color", &(vertex_normals_color.x));
@@ -334,25 +331,19 @@ int main()
     }
     ImGui::End();
 
-    if (ImGui::BeginPopupModal("LoadingDialog", &loading_dialog))
-    {
-      ImGui::Text("Loading %c", "|/-\\"[(int)(ImGui::GetTime() / 0.05f) & 3]);
-      ImGui::EndPopup();
-    }
-
-    if (section_selector_open)
-    {
-      ImGui::Begin("Section Selector");
-      int i = 0;
-      for (LoadedSection& loaded_section : loaded_sections)
-      {
-        std::string name("Enable Section ");
-        name += std::to_string(i);
-        ImGui::Checkbox(name.c_str(), &loaded_section.enabled);
-        ++i;
-      }
-      ImGui::End();
-    }
+    //if (section_selector_open)
+    //{
+    //  ImGui::Begin("Section Selector");
+    //  int i = 0;
+    //  for (LoadedSection& loaded_section : loaded_sections)
+    //  {
+    //    std::string name("Enable Section ");
+    //    name += std::to_string(i);
+    //    ImGui::Checkbox(name.c_str(), &loaded_section.enabled);
+    //    ++i;
+    //  }
+    //  ImGui::End();
+    //}
 
     world_matrix = dx::XMMatrixIdentity();
     world_matrix *= dx::XMMatrixScaling(model_scale, model_scale, model_scale);
@@ -410,9 +401,13 @@ int main()
     render.GetD3D11Context()->Draw(4, 0);
 
     // draw debug objects
-    //render.SetRenderMode(CS350::Render_DX11::RenderMode::WIREFRAME);
-    //render.UseShader(debug_wireframe);
-    //render.Draw();
+    render.SetRenderMode(CS350::Render_DX11::RenderMode::WIREFRAME);
+    render.UseShader(debug_wireframe);
+    for (CS350::Render_DX11::MeshID section_mesh : section_meshes)
+    {
+      //render.UseMesh(section_mesh);
+      //render.Draw();
+    }
 
     if (draw_vertex_normals)
     {
