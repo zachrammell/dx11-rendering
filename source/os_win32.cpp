@@ -24,11 +24,11 @@ namespace CS350
 
 OS_Win32::OS_Win32(LPCTSTR title, int width, int height)
   : should_close_window_{ false },
-  window_handle_{ nullptr },
-  width_{}, height_{},
-  render_{ nullptr },
+    window_handle_{ nullptr },
+    width_{}, height_{},
+    render_{nullptr},
 
-  window_procedure_callback_helper_{ this, &OS_Win32::WindowProcedure }
+    window_procedure_callback_helper_{this, &OS_Win32::WindowProcedure}
 {
   LPCTSTR window_class_name = TEXT("CS300ProjWndClass");
   HICON icon = LoadIcon(NULL, IDI_APPLICATION);
@@ -53,7 +53,7 @@ OS_Win32::OS_Win32(LPCTSTR title, int width, int height)
   if (!RegisterClassEx(&wc))
   {
     MessageBox(nullptr, TEXT("Error registering class"),
-               TEXT("Error"), MB_OK | MB_ICONERROR);
+      TEXT("Error"), MB_OK | MB_ICONERROR);
     __debugbreak();
   }
 
@@ -73,7 +73,7 @@ OS_Win32::OS_Win32(LPCTSTR title, int width, int height)
   if (!window_handle_)
   {
     MessageBox(nullptr, TEXT("Error creating window"),
-               TEXT("Error"), MB_OK | MB_ICONERROR);
+      TEXT("Error"), MB_OK | MB_ICONERROR);
     __debugbreak();
   }
 
@@ -127,9 +127,9 @@ int OS_Win32::GetHeight() const
 }
 
 LRESULT OS_Win32::WindowProcedure(HWND handle_window,
-                                  UINT message,
-                                  WPARAM w_param,
-                                  LPARAM l_param)
+  UINT message,
+  WPARAM w_param,
+  LPARAM l_param)
 {
   if (ImGui_ImplWin32_WndProcHandler(handle_window, message, w_param, l_param))
   {
@@ -144,14 +144,10 @@ LRESULT OS_Win32::WindowProcedure(HWND handle_window,
     {
       return 0;
     }
-    if (ImGui::GetIO().WantCaptureMouse)
-    {
-      return 0;
-    }
     if (w_param == VK_ESCAPE)
     {
       if (MessageBox(nullptr, TEXT("Are you sure you want to exit?"),
-                     TEXT("Really?"), MB_YESNOCANCEL | MB_ICONQUESTION) == IDYES)
+        TEXT("Really?"), MB_YESNOCANCEL | MB_ICONQUESTION) == IDYES)
       {
         should_close_window_ = true;
       }

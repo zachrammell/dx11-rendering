@@ -27,12 +27,11 @@ End Header --------------------------------------------------------*/
 #include <imgui_impl_win32.h>
 #include <iostream>
 
+
 #include "structures/per_object.h"
 #include "structures/per_frame.h"
 
-#include "geometry/box.h"
 #include "math_helper.h"
-
 namespace fs = std::filesystem;
 namespace dx = DirectX;
 
@@ -43,11 +42,11 @@ int screen_width = 1280, screen_height = 720;
 
 int main()
 {
-  CS350::OS_Win32 os{ TEXT("CS350 Project 3 - Zach Rammell"), screen_width, screen_height };
+  CS350::OS_Win32 os{ TEXT("CS350 Project 1 - Zach Rammell"), screen_width, screen_height };
   CS350::Render_DX11 render{ os };
   os.Show();
 
-  float3 clear_color{ 0.15f, 0.15f, 0.15f };
+  dx::XMFLOAT3 clear_color{ 0.15f, 0.15f, 0.15f };
 
   dx::XMMATRIX cam_view_matrix;
   dx::XMMATRIX cam_projection_matrix;
@@ -99,78 +98,125 @@ int main()
   CS350::Mesh sphere_mesh = CS350::Mesh::GenerateSphere(16, 16);
   CS350::Image metal_image = CS350::Image("assets/textures/metal_roof_diff_512x512.png");
 
-  fs::path powerplant_path{ "assets/models/powerplant" };
-  std::string bounds_filename{ "bounds.txt" };
-  fs::path bounds_file_path = powerplant_path/bounds_filename;
+  std::vector<std::vector<CS350::Mesh>> section_mesh_lists;
+  std::vector<fs::path> section_descriptor_paths;
+  fs::path powerplant_model_path = "assets/models/powerplant";
 
-  std::vector<CS350::Box<3>> bounds;
-  if (fs::exists(bounds_file_path))
+  int section_count = 0;
   {
-    std::ifstream bounds_file{ bounds_file_path };
-    int bound_count = std::count(std::istreambuf_iterator<char>(bounds_file),
-                                         std::istreambuf_iterator<char>(), '\n');
-    bounds_file.seekg(0);
-    bounds.reserve(bound_count);
-    for (int i = 0; i < bound_count; ++i)
+    for (fs::directory_entry const& dir : fs::directory_iterator(powerplant_model_path))
     {
-      float discard_;
-      CS350::Point<3> mn, mx;
-      bounds_file >> mn.x >> mn.y >> mn.z >> discard_;
-      bounds_file >> mx.x >> mx.y >> mx.z >> discard_;
-
-      bounds.emplace_back(mn, mx);
-    }
-  }
-
-  int the_section_to_load = 2;
-
-  std::string section_file{ "Section" };
-  section_file.append(std::to_string(the_section_to_load));
-  section_file.append(".txt");
-  fs::path section_file_path = powerplant_path/section_file;
-
-  std::vector<CS350::Mesh> section_models;
-  if (fs::exists(section_file_path))
-  {
-    std::ifstream section_file{ section_file_path };
-    int section_model_count = std::count(std::istreambuf_iterator<char>(section_file),
-                                         std::istreambuf_iterator<char>(), '\n');
-    section_file.seekg(0);
-    section_models.reserve(section_model_count);
-    for (int i = 0; i < section_model_count; ++i)
-    {
-      std::string section_model_path;
-      std::getline(section_file, section_model_path);
-      
-      if (fs::exists(powerplant_path/section_model_path))
+      if (dir.path().filename().string().rfind("Section", 0) == 0 && dir.path().extension().compare("txt"))
       {
-        section_models.emplace_back(CS350::Mesh::Load((powerplant_path/section_model_path).generic_string().c_str()));
+        ++section_count;
+        section_descriptor_paths.push_back(dir.path().generic_string());
       }
     }
+    section_mesh_lists.resize(section_count);
   }
-
-  // normalize mesh based on its bounds
+  auto load_section = [&](int section)
   {
-    int i = the_section_to_load - 1;
-    float3 center = CS350::avg(bounds[i].mn, bounds[i].mx);
-    const float max_distance = length(bounds[i].mx - center);
+    printf("Loading section %i\nPath %s\n", section, section_descriptor_paths[section].generic_string().c_str());
+    std::ifstream infile_section_descriptor(section_descriptor_paths[section]);
+    size_t const model_count = std::count(std::istreambuf_iterator<char>(infile_section_descriptor),
+                                          std::istreambuf_iterator<char>(), '\n');
+    section_mesh_lists[section].resize(model_count);
+    infile_section_descriptor.clear();
+    infile_section_descriptor.seekg(0);
 
-    float4x4 norm_mtx = make_float4x4_translation(-center) * make_float4x4_scale(1.0f / max_distance);
+    std::mutex m;
+    std::condition_variable cv;
+    std::atomic<int> counter = 0;
 
-    for (CS350::Mesh& model : section_models)
+    for (int i = 0; i < model_count; ++i)
     {
-      for (CS350::Mesh::Vertex& v : model.vertex_buffer)
+      std::string line;
+      std::getline(infile_section_descriptor, line);
+      ++counter;
+      std::thread([&](CS350::Mesh* mesh, std::string model_path)
       {
-        v.position = transform(v.position, norm_mtx);
-      }
+        *mesh = CS350::Mesh::Load((powerplant_model_path / model_path).generic_u8string().c_str());
+
+        std::lock_guard lk(m);
+        --counter;
+        cv.notify_all();
+      }, section_mesh_lists[section].data() + i, line).detach();
+    }
+
+    std::unique_lock lock(m);
+    cv.wait(lock, [&counter]() { return counter == 0; });
+    m.unlock();
+    printf("Loaded section %i\n", section);
+  };
+
+  struct aabb
+  {
+    float3 min, max;
+  };
+
+  std::vector<aabb> bounds;
+  {
+    std::ifstream infile("assets/models/powerplant/bounds.txt");
+
+    // -1 because the last one is the entire plant
+    size_t bound_count = std::count(std::istreambuf_iterator<char>(infile),
+                                    std::istreambuf_iterator<char>(), '\n') - 1;
+    bounds.resize(bound_count);
+    infile.clear();
+    infile.seekg(0);
+
+    for (size_t i = 0; i < bound_count; ++i)
+    {
+      float unused;
+      aabb& b = bounds[i];
+      infile >> b.min.z >> b.min.y >> b.min.z >> unused;
+      infile >> b.max.x >> b.max.y >> b.max.z >> unused;
     }
   }
 
-  std::vector<CS350::Render_DX11::MeshID> section_meshes;
-  section_meshes.reserve(section_models.size());
-  for (CS350::Mesh const& section_model : section_models)
+  auto load_all_sections = [&]()
   {
-    section_meshes.emplace_back(render.CreateMesh(section_model));
+    for (int i = 0; i < section_count; ++i)
+    {
+      load_section(i);
+      float3 center = (bounds[i].min + bounds[i].max) / 2.0f;
+      const float max_distance = length(bounds[i].max - center);
+
+      float4x4 norm_mtx = make_float4x4_translation(-center) * make_float4x4_scale(1.0f / max_distance);
+
+      for (CS350::Mesh& mesh : section_mesh_lists[i])
+      {
+        for (CS350::Mesh::Vertex& v : mesh.vertex_buffer)
+        {
+          v.position = transform(v.position, norm_mtx);
+        }
+      }
+    }
+  };
+
+  load_all_sections();
+
+  size_t total_mesh_count = 0;
+  for (auto& s : section_mesh_lists)
+  {
+    total_mesh_count += s.size();
+  }
+  struct LoadedSection
+  {
+    uint32_t begin = 0;
+    uint32_t count = 0;
+    bool enabled = false;
+  };
+  std::vector<LoadedSection> loaded_sections(section_count);
+  std::vector<CS350::Render_DX11::MeshID> all_plant_meshes(total_mesh_count);
+  for (size_t j = 0; j < section_mesh_lists.size(); ++j)
+  {
+    auto const& mesh_list = section_mesh_lists[j];
+    loaded_sections[j] = LoadedSection{ uint32_t(all_plant_meshes.size() - 1), uint32_t(mesh_list.size()), j % 3 == 0 };
+    for (size_t i = 0; i < mesh_list.size(); ++i)
+    {
+      all_plant_meshes.push_back(render.CreateMesh(mesh_list[i]));
+    }
   }
 
   CS350::Render_DX11::TextureID metal_texture = render.CreateTexture(metal_image);
@@ -251,6 +297,10 @@ int main()
     {
       if (ImGui::BeginMenu("File"))
       {
+        if (ImGui::Button("Loading"))
+        {
+          ImGui::OpenPopup("LoadingDialog", ImGuiPopupFlags_AnyPopup);
+        }
         ImGui::EndMenu();
       }
       if (ImGui::BeginMenu("View"))
@@ -262,7 +312,7 @@ int main()
     }
 
     ImGui::Begin("Scene Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize);
-    ImGui::Checkbox("Show Vertex Normals", &draw_vertex_normals);
+    ImGui::Checkbox("Show Vertex Normals [WARNING: VERY SLOW]", &draw_vertex_normals);
     if (draw_vertex_normals)
     {
       ImGui::ColorEdit3("Vertex Normals Color", &(vertex_normals_color.x));
@@ -284,19 +334,25 @@ int main()
     }
     ImGui::End();
 
-    //if (section_selector_open)
-    //{
-    //  ImGui::Begin("Section Selector");
-    //  int i = 0;
-    //  for (LoadedSection& loaded_section : loaded_sections)
-    //  {
-    //    std::string name("Enable Section ");
-    //    name += std::to_string(i);
-    //    ImGui::Checkbox(name.c_str(), &loaded_section.enabled);
-    //    ++i;
-    //  }
-    //  ImGui::End();
-    //}
+    if (ImGui::BeginPopupModal("LoadingDialog", &loading_dialog))
+    {
+      ImGui::Text("Loading %c", "|/-\\"[(int)(ImGui::GetTime() / 0.05f) & 3]);
+      ImGui::EndPopup();
+    }
+
+    if (section_selector_open)
+    {
+      ImGui::Begin("Section Selector");
+      int i = 0;
+      for (LoadedSection& loaded_section : loaded_sections)
+      {
+        std::string name("Enable Section ");
+        name += std::to_string(i);
+        ImGui::Checkbox(name.c_str(), &loaded_section.enabled);
+        ++i;
+      }
+      ImGui::End();
+    }
 
     world_matrix = dx::XMMatrixIdentity();
     world_matrix *= dx::XMMatrixScaling(model_scale, model_scale, model_scale);
@@ -328,13 +384,19 @@ int main()
     render.UseUniform(per_object, 0);
     render.UseUniform(per_frame, 1);
 
-    for (CS350::Render_DX11::MeshID section_mesh : section_meshes)
+    for (auto const& section : loaded_sections)
     {
-      render.UseMesh(section_mesh);
-      render.Draw();
+      if (section.enabled)
+      {
+        // RenderSection
+        for (uint32_t i = 0; i < section.count; ++i)
+        {
+          render.UseMesh(all_plant_meshes[section.begin + i]);
+          render.Draw();
+        }
+      }
     }
 
-    render.SetClearColor(clear_color);
     render.RenderTo(composited_texture);
     render.ClearRenderTexture(composited_texture);
 
@@ -348,13 +410,9 @@ int main()
     render.GetD3D11Context()->Draw(4, 0);
 
     // draw debug objects
-    render.SetRenderMode(CS350::Render_DX11::RenderMode::WIREFRAME);
-    render.UseShader(debug_wireframe);
-    for (CS350::Render_DX11::MeshID section_mesh : section_meshes)
-    {
-      //render.UseMesh(section_mesh);
-      //render.Draw();
-    }
+    //render.SetRenderMode(CS350::Render_DX11::RenderMode::WIREFRAME);
+    //render.UseShader(debug_wireframe);
+    //render.Draw();
 
     if (draw_vertex_normals)
     {
@@ -362,10 +420,17 @@ int main()
       per_object_data.Color = { vertex_normals_color, 1.0f };
       render.UpdateUniform(per_object, per_object_data);
 
-      for (CS350::Render_DX11::MeshID section_mesh : section_meshes)
+      for (auto const& section : loaded_sections)
       {
-        render.UseMesh(section_mesh);
-        render.Draw();
+        if (section.enabled)
+        {
+          // RenderSection
+          for (uint32_t i = 0; i < section.count; ++i)
+          {
+            render.UseMesh(all_plant_meshes[section.begin + i]);
+            render.Draw();
+          }
+        }
       }
     }
 

@@ -113,9 +113,6 @@ Render_DX11::Render_DX11(OS_Win32& os)
 
   hr = GetD3D11Device()->CreateSamplerState(&sampler_desc, sampler_state_.put());
   assert(SUCCEEDED(hr));
-
-  auto* sampler = sampler_state_.get();
-  GetD3D11Context()->PSSetSamplers(0, 1, &sampler);
 }
 
 Render_DX11::~Render_DX11()
@@ -137,14 +134,14 @@ void Render_DX11::ClearDefaultFramebuffer()
   );
 }
 
-void Render_DX11::SetClearColor(float3 c)
+void Render_DX11::SetClearColor(dx::XMFLOAT3 c)
 {
   clear_color_ = {c.x, c.y, c.z, 1.0f};
 }
 
-void Render_DX11::SetClearColor(float4 c)
+void Render_DX11::SetClearColor(DirectX::XMFLOAT4 c)
 {
-  clear_color_ = { c.x, c.y, c.z, c.w };
+  clear_color_ = c;
 }
 
 void Render_DX11::Present()
