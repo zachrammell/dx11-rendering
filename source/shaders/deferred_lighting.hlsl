@@ -41,7 +41,7 @@ struct vs_out
 vs_out vs_main(vs_in input)
 {
   vs_out output;
-  output.texture_coord = float2(input.id & 1, input.id >> 1);
+  output.texture_coord = float2(input.id >> 1, input.id & 1);
   output.position_clip = float4((output.texture_coord.x - 0.5f) * 2, -(output.texture_coord.y - 0.5f) * 2, 0, 1);
   return output;
 }
@@ -55,9 +55,9 @@ ps_out ps_main(vs_out input) : SV_TARGET
 {
   ps_out output;
 
-  float3 view = frame_data.CameraPosition - TexturePosition.Sample(Sampler, input.texture_coord);
-  float3 normal = TextureNormal.Sample(Sampler, input.texture_coord).xyz;
-  float3 frag_pos = TexturePosition.Sample(Sampler, input.texture_coord);
+  float3 frag_pos = TexturePosition.Sample(Sampler, input.texture_coord).xyz;
+  float3 view = normalize(frame_data.CameraPosition.xyz - frag_pos);
+  float3 normal = normalize(TextureNormal.Sample(Sampler, input.texture_coord).xyz);
   float3 white = float3(1, 1, 1);
 
   float4 diffuse_color = TextureDiffuse.Sample(Sampler, input.texture_coord);
@@ -68,16 +68,17 @@ ps_out ps_main(vs_out input) : SV_TARGET
 
   float3 intensity = 0.0f;
   //for (int i = 0; i < 20; ++i)
-  {
+  //{
+  light_contribution lc1 = DirectionalLight(make_directional_light(white, view), view, normal);
     light_contribution lc = PointLight(
       make_point_light(white, frame_data.CameraPosition),
       frag_pos, view, normal, float3(0.5f, 0.5f, 0.5f)
       );
     intensity += lc.diffuse + lc.specular;
-  }
+  //}
 
-  output.color = frame_data.AmbientColor + float4(intensity * diffuse_color.xyz, 1.0f);
-  //output.color *= 
+  output.color = frame_data.AmbientColor + float4(lc.diffuse * diffuse_color.xyz, 1.0f) + float4(lc.specular * white, 1.0f);
+  output.color.a = 1.0f;
 
   return output;
 }

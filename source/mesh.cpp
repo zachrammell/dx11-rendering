@@ -21,7 +21,7 @@ End Header --------------------------------------------------------*/
 namespace CS350
 {
 
-Mesh_D3D::Mesh_D3D(Render_DX11& render, Mesh const& m)
+Mesh::Mesh(Render_DX11& render, Model const& m)
   : vertex_count_(m.vertex_buffer.size()),
   index_count_(m.index_buffer.size())
 {
@@ -29,7 +29,7 @@ Mesh_D3D::Mesh_D3D(Render_DX11& render, Mesh const& m)
   {
     D3D11_BUFFER_DESC vertex_buffer_descriptor
     {
-      UINT(sizeof(Mesh::Vertex) * vertex_count_),
+      UINT(sizeof(Model::Vertex) * vertex_count_),
       D3D11_USAGE_DYNAMIC,
       D3D11_BIND_VERTEX_BUFFER,
       D3D11_CPU_ACCESS_WRITE, 0, 0
@@ -43,7 +43,7 @@ Mesh_D3D::Mesh_D3D(Render_DX11& render, Mesh const& m)
   {
     D3D11_BUFFER_DESC index_buffer_descriptor
     {
-      UINT(sizeof(Mesh::Index) * index_count_),
+      UINT(sizeof(Model::Index) * index_count_),
       D3D11_USAGE_DEFAULT,
       D3D11_BIND_INDEX_BUFFER,
       0, 0, 0
@@ -55,13 +55,13 @@ Mesh_D3D::Mesh_D3D(Render_DX11& render, Mesh const& m)
   }
 }
 
-Mesh_D3D::Mesh_D3D(Render_DX11& render, std::vector<Mesh::Vertex> const& vertex_buffer)
+Mesh::Mesh(Render_DX11& render, std::vector<Model::Vertex> const& vertex_buffer)
   : vertex_count_(vertex_buffer.size()),
   index_count_(0)
 {
   D3D11_BUFFER_DESC vertex_buffer_descriptor
   {
-    UINT(sizeof(Mesh::Vertex) * vertex_count_),
+    UINT(sizeof(Model::Vertex) * vertex_count_),
     D3D11_USAGE_DEFAULT,
     D3D11_BIND_VERTEX_BUFFER,
     0, 0, 0
@@ -72,12 +72,12 @@ Mesh_D3D::Mesh_D3D(Render_DX11& render, std::vector<Mesh::Vertex> const& vertex_
   assert(SUCCEEDED(hr));
 }
 
-Mesh::PropertyStore const& Mesh::GetPropertyStore()
+Model::PropertyStore const& Model::GetPropertyStore()
 {
   return property_store_;
 }
 
-void Mesh::ProcessNode(aiScene const* scene, aiNode const* node)
+void Model::ProcessNode(aiScene const* scene, aiNode const* node)
 {
   for (unsigned i = 0; i < node->mNumMeshes; ++i)
   {
@@ -90,7 +90,7 @@ void Mesh::ProcessNode(aiScene const* scene, aiNode const* node)
   }
 }
 
-void Mesh::ProcessMesh(aiScene const* scene, aiMesh const* mesh)
+void Model::ProcessMesh(aiScene const* scene, aiMesh const* mesh)
 {
   size_t start = vertex_buffer.size(); //start of next mesh in aiScene
   const bool has_normals = mesh->HasNormals();
@@ -123,17 +123,17 @@ void Mesh::ProcessMesh(aiScene const* scene, aiMesh const* mesh)
   }
 }
 
-void Mesh_D3D::Reload(Mesh const& m, Render_DX11& render)
+void Mesh::Reload(Model const& m, Render_DX11& render)
 {
   D3D11_MAPPED_SUBRESOURCE resource;
   HRESULT hr;
   hr = render.GetD3D11Context()->Map(vertex_buffer_.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &resource);
   if (FAILED(hr)) __debugbreak();
-  memcpy(resource.pData, m.vertex_buffer.data(), m.vertex_buffer.size() * sizeof(Mesh::Vertex));
+  memcpy(resource.pData, m.vertex_buffer.data(), m.vertex_buffer.size() * sizeof(Model::Vertex));
   render.GetD3D11Context()->Unmap(vertex_buffer_.get(), 0);
 }
 
-Mesh Mesh::Load(char const* filepath)
+Model Model::Load(char const* filepath)
 {  
   aiScene const* scene = aiImportFileExWithProperties(
     filepath,
@@ -142,15 +142,15 @@ Mesh Mesh::Load(char const* filepath)
     NULL,
     GetPropertyStore().store_);
 
-  Mesh new_mesh;
+  Model new_mesh;
   new_mesh.ProcessNode(scene, scene->mRootNode);
   return new_mesh;
 }
 
-Mesh Mesh::GenerateSphere(int sectorCount, int stackCount)
+Model Model::GenerateSphere(int sectorCount, int stackCount)
 {
   using namespace DirectX;
-  Mesh sphere_mesh;
+  Model sphere_mesh;
 
   float x, y, z, xy; // vertex position
   float nx, ny, nz;  // vertex normal
@@ -238,10 +238,10 @@ Mesh Mesh::GenerateSphere(int sectorCount, int stackCount)
   return sphere_mesh;
 }
 
-Mesh Mesh::GenerateCircle(int segments)
+Model Model::GenerateCircle(int segments)
 {
   using namespace DirectX;
-  Mesh circle_mesh;
+  Model circle_mesh;
 
   circle_mesh.vertex_buffer.reserve(segments + 1);
 
@@ -255,13 +255,61 @@ Mesh Mesh::GenerateCircle(int segments)
   return circle_mesh;
 }
 
-Mesh::PropertyStore::PropertyStore()
+Model Model::GenerateUnitLineCube()
 {
-  store_ = aiCreatePropertyStore();
-  aiSetImportPropertyInteger(store_, "PP_PTV_NORMALIZE", 0);
+  Model cube_mesh;
+
+  cube_mesh.vertex_buffer.reserve(8);
+
+  // 0 : bottom left back
+  cube_mesh.vertex_buffer.push_back({ {-1, -1, -1} });
+  // 1 : bottom right back
+  cube_mesh.vertex_buffer.push_back({ { 1, -1, -1} });
+  // 2 : top left back
+  cube_mesh.vertex_buffer.push_back({ {-1,  1, -1} });
+  // 3 : top left back
+  cube_mesh.vertex_buffer.push_back({ { 1,  1, -1} });
+  // 4 : bottom left front
+  cube_mesh.vertex_buffer.push_back({ {-1, -1,  1} });
+  // 5 : bottom right front
+  cube_mesh.vertex_buffer.push_back({ { 1, -1,  1} });
+  // 6 : top left front
+  cube_mesh.vertex_buffer.push_back({ {-1,  1,  1} });
+  // 7 : top left front
+  cube_mesh.vertex_buffer.push_back({ { 1,  1,  1} });
+
+  int sequence[] =
+  {
+    0, 1,
+    0, 2,
+    2, 3,
+    1, 3,
+    0, 4,
+    1, 5,
+    2, 6,
+    3, 7,
+    4, 5,
+    4, 6,
+    6, 7,
+    5, 7
+  };
+
+  cube_mesh.index_buffer.reserve(ARRAYSIZE(sequence));
+  for (int i = 0; i < ARRAYSIZE(sequence); ++i)
+  {
+    cube_mesh.index_buffer.push_back(sequence[i]);
+  }
+
+  return cube_mesh;
 }
 
-Mesh::PropertyStore::~PropertyStore()
+Model::PropertyStore::PropertyStore()
+{
+  store_ = aiCreatePropertyStore();
+  aiSetImportPropertyInteger(store_, "PP_PTV_NORMALIZE", 1);
+}
+
+Model::PropertyStore::~PropertyStore()
 {
   aiReleasePropertyStore(store_);
 }

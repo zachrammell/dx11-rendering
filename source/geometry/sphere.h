@@ -1,6 +1,6 @@
 #pragma once
 
-#include "point.h"
+#include "vec.h"
 #include "ray.h"
 
 namespace CS350
@@ -12,10 +12,10 @@ struct Box;
 template<int Dim>
 struct Sphere
 {
-  Point<Dim> center;
+  Vec<Dim> center;
   float radius;
 
-  bool contains(Point<Dim> const& p) const
+  bool contains(Vec<Dim> const& p) const
   {
     float const d = p - center;
     return (d * d) <= (radius * radius);

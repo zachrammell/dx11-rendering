@@ -1,6 +1,6 @@
 #pragma once
 
-#include "point.h"
+#include "vec.h"
 #include "sphere.h"
 #include "interval.h"
 
@@ -13,9 +13,9 @@ struct Box
 private:
   std::vector<Slab<Dim>> slabs_;
 public:
-  Point<Dim> mn, mx;
+  Vec<Dim> mn, mx;
 
-  Box(Point<Dim> const& min, Point<Dim> const& max)
+  Box(Vec<Dim> const& min, Vec<Dim> const& max)
   : mn(min),
     mx(max)
   {
@@ -28,7 +28,7 @@ public:
     }
   }
 
-  bool contains(Point<Dim> const& point)
+  bool contains(Vec<Dim> const& point)
   {
     // for each axis
     for (unsigned int i = 0; i < Dim; ++i)

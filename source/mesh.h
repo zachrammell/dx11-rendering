@@ -28,7 +28,7 @@ namespace CS350
 
 class Render_DX11;
 
-struct Mesh
+struct Model
 {
   struct Vertex
   {
@@ -44,9 +44,10 @@ struct Mesh
 
   /* Mesh Creation Functions */
 
-  static Mesh Load(char const* filepath);
-  static Mesh GenerateSphere(int sectorCount, int stackCount);
-  static Mesh GenerateCircle(int segments);
+  static Model Load(char const* filepath);
+  static Model GenerateSphere(int sectorCount, int stackCount);
+  static Model GenerateCircle(int segments);
+  static Model GenerateUnitLineCube();
 
 private:
   static inline struct PropertyStore
@@ -61,14 +62,14 @@ private:
   void ProcessMesh(aiScene const* scene, aiMesh const* mesh);
 };
 
-class Mesh_D3D
+class Mesh
 {
 public:
-  void Reload(Mesh const& m, Render_DX11& render);
+  void Reload(Model const& m, Render_DX11& render);
 private:
   friend class Render_DX11;
-  Mesh_D3D(Render_DX11& render, Mesh const& m);
-  Mesh_D3D(Render_DX11& render, std::vector<Mesh::Vertex> const& vertex_buffer);
+  Mesh(Render_DX11& render, Model const& m);
+  Mesh(Render_DX11& render, std::vector<Model::Vertex> const& vertex_buffer);
   winrt::com_ptr<ID3D11Buffer> vertex_buffer_ = nullptr;
   winrt::com_ptr<ID3D11Buffer> index_buffer_ = nullptr;
   UINT vertex_count_, index_count_;

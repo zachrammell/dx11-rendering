@@ -1,6 +1,5 @@
 #pragma once
 
-#include "point.h"
 #include "vec.h"
 #include "box.h"
 
@@ -13,7 +12,7 @@ struct Plane
   Vec<Dim> normal;
   float d;
 
-  bool contains(Point<Dim> const& point) const
+  bool contains(Vec<Dim> const& point) const
   {
     Vec<Dim + 1> P = normal;
     P[Dim] = d;

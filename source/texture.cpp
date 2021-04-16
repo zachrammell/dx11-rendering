@@ -52,7 +52,7 @@ ID3D11Texture2D* Texture::GetTextureResource() const
   return texture_.get();
 }
 
-RenderTexture::RenderTexture(Render_DX11& render, int width, int height, bool depth)
+RenderTexture::RenderTexture(Render_DX11& render, int width, int height)
 {
   HRESULT hr;
 
@@ -92,10 +92,6 @@ RenderTexture::RenderTexture(Render_DX11& render, int width, int height, bool de
   viewport_.TopLeftX = 0;
   viewport_.TopLeftY = 0;
 
-  if (depth)
-  {
-    hr = render.GetD3D11Device()->CreateDepthStencilView(texture_.get(), nullptr, depth_stencil_view_.put());
-  }
 }
 
 void RenderTexture::Clear(Render_DX11& render, DirectX::XMFLOAT4 color)

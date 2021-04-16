@@ -46,6 +46,14 @@ struct Vec<3> : float3
   {
     return (&x)[i];
   }
+  Vec<3>& operator=(float3 const& f)
+  {
+    x = f.x;
+    y = f.y;
+    z = f.z;
+
+    return *this;
+  }
 };
 
 template<>

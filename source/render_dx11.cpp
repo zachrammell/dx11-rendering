@@ -68,8 +68,9 @@ Render_DX11::Render_DX11(OS_Win32& os)
   {
     D3D11_FILL_SOLID,
     D3D11_CULL_BACK,
-    true,
+    true
   };
+
 
   hr = device_->CreateRasterizerState(&rasterizer_descriptor, rasterizer_state_.put());
   assert(SUCCEEDED(hr));
@@ -78,7 +79,7 @@ Render_DX11::Render_DX11(OS_Win32& os)
   {
     D3D11_FILL_WIREFRAME,
     D3D11_CULL_NONE,
-    true,
+    true
   };
 
   hr = device_->CreateRasterizerState(&rasterizer_descriptor_wireframe, rasterizer_state_wireframe_.put());
@@ -157,8 +158,8 @@ void Render_DX11::ResizeFramebuffer(OS_Win32 const& os)
 {
   CleanupRenderTarget();
   DeleteDepthBuffer();
+  CreateRenderTarget(os);
   CreateDepthBuffer(os);
-  CreateRenderTarget();
   SetupViewport(os);
 
   // the windows api is not const-correct. it won't modify this,
@@ -166,6 +167,18 @@ void Render_DX11::ResizeFramebuffer(OS_Win32 const& os)
   auto* p_render_target_view = render_target_view_.get();
   device_context_->OMSetRenderTargets(1, &p_render_target_view, depth_stencil_view_.get());
   assert(p_render_target_view == render_target_view_.get()); // the pointer should be unchanged
+}
+
+void Render_DX11::EnableDepthTest(bool enabled)
+{
+  if (enabled)
+  {
+    device_context_->OMSetDepthStencilState(depth_stencil_state_.get(), 0);
+  }
+  else
+  {
+    device_context_->OMSetDepthStencilState(depth_stencil_state_no_test_.get(), 0);
+  }
 }
 
 Render_DX11::ShaderID Render_DX11::CreateShader(LPCWSTR shader_path, int input_layout, bool GS)
@@ -222,9 +235,16 @@ void Render_DX11::UseTexture(TextureID texture, int slot)
   GetD3D11Context()->PSSetShaderResources(slot, 1, &resource_view);
 }
 
+void Render_DX11::UnuseTexture(int slot)
+{
+  ID3D11ShaderResourceView* null_resource_view[1] = { nullptr };
+  GetD3D11Context()->VSSetShaderResources(slot, 1, null_resource_view);
+  GetD3D11Context()->PSSetShaderResources(slot, 1, null_resource_view);
+}
+
 Render_DX11::TextureID Render_DX11::CreateRenderTexture(int width, int height)
 {
-  render_textures_.emplace_back(RenderTexture{ *this, width, height });
+  render_textures_.emplace_back(RenderTexture{ *this, width, height});
   textures_.emplace_back(InternalTexture{ uint32_t(image_textures_.size() - 1), InternalTexture::Type::RenderTexture });
   return TextureID(textures_.size() - 1);
 }
@@ -243,17 +263,26 @@ void Render_DX11::ClearRenderTexture(TextureID render_texture)
   assert(textures_[render_texture].type == InternalTexture::Type::RenderTexture);
   RenderTexture const& render_tex = *(RenderTexture*)GetTexture(textures_[render_texture]);
   GetD3D11Context()->ClearRenderTargetView(render_tex.render_target_view_.get(), &(clear_color_.x));
+  if (render_tex.depth_stencil_view_)
+  {
+    GetD3D11Context()->ClearDepthStencilView(
+      render_tex.depth_stencil_view_.get(),
+      D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL,
+      1.0f,
+      0
+    );
+  }
 }
 
-Render_DX11::MeshID Render_DX11::CreateMesh(Mesh const& m)
+Render_DX11::MeshID Render_DX11::CreateMesh(Model const& m)
 {
-  meshes_.emplace_back(Mesh_D3D{ *this, m });
+  meshes_.emplace_back(Mesh{ *this, m });
   return MeshID(meshes_.size() - 1);
 }
 
-Render_DX11::MeshID Render_DX11::CreateMesh(std::vector<Mesh::Vertex> const& vertex_buffer)
+Render_DX11::MeshID Render_DX11::CreateMesh(std::vector<Model::Vertex> const& vertex_buffer)
 {
-  meshes_.emplace_back(Mesh_D3D{ *this, vertex_buffer });
+  meshes_.emplace_back(Mesh{ *this, vertex_buffer });
   return MeshID(meshes_.size() - 1);
 }
 
@@ -267,8 +296,8 @@ void Render_DX11::UseMesh(MeshID mesh)
       GetD3D11Context()->IASetInputLayout(nullptr);
       return;
     }
-    Mesh_D3D& mesh_d3d = meshes_[mesh];
-    UINT vertex_stride = sizeof(Mesh::Vertex);
+    Mesh& mesh_d3d = meshes_[mesh];
+    UINT vertex_stride = sizeof(Model::Vertex);
     UINT vertex_offset = 0;
 
     ID3D11Buffer* buffer = mesh_d3d.vertex_buffer_.get();
@@ -349,9 +378,17 @@ void Render_DX11::UseFramebufferTexture(FramebufferID framebuffer, int target, i
   GetD3D11Context()->PSSetShaderResources(slot, 1, &resource_view);
 }
 
+void Render_DX11::UseFramebufferDepth(FramebufferID framebuffer)
+{
+  Framebuffer& fb = framebuffers_[framebuffer];
+  ID3D11RenderTargetView* render_target_views = nullptr;
+  GetD3D11Context()->OMGetRenderTargets(1, &render_target_views, nullptr);
+  GetD3D11Context()->OMSetRenderTargets(1, &render_target_views, fb.depth_stencil_view_.get());
+}
+
 void Render_DX11::SetRenderMode(RenderMode render_mode)
 {
-  if (render_mode_ != render_mode)
+  //if (render_mode_ != render_mode)
   {
     render_mode_ = render_mode;
     switch (render_mode_)
@@ -416,7 +453,7 @@ void Render_DX11::CleanupRenderTarget()
 {
   if (render_target_view_)
   {
-    device_context_->OMSetRenderTargets(0, 0, 0);
+    device_context_->OMSetRenderTargets(0, nullptr, nullptr);
     render_target_view_.attach(nullptr);
   }
 }
@@ -426,6 +463,7 @@ void Render_DX11::DeleteDepthBuffer()
   depth_stencil_view_.attach(nullptr);
   depth_stencil_buffer_.attach(nullptr);
   depth_stencil_state_.attach(nullptr);
+  depth_stencil_state_no_test_.attach(nullptr);
 }
 
 void Render_DX11::CreateDepthBuffer(OS_Win32 const& os)
@@ -468,10 +506,23 @@ void Render_DX11::CreateDepthBuffer(OS_Win32 const& os)
   depth_stencil_desc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
   depth_stencil_desc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
 
+  D3D11_DEPTH_STENCIL_DESC depth_stencil_desc_no_test;
+
+  // Depth test parameters
+  depth_stencil_desc_no_test.DepthEnable = false;
+  depth_stencil_desc_no_test.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+  depth_stencil_desc_no_test.DepthFunc = D3D11_COMPARISON_ALWAYS;
+
+  // Stencil test parameters
+  depth_stencil_desc_no_test.StencilEnable = false;
+
   HRESULT hr;
 
   // Create depth stencil state
   hr = device_->CreateDepthStencilState(&depth_stencil_desc, depth_stencil_state_.put());
+  assert(SUCCEEDED(hr));
+
+  hr = device_->CreateDepthStencilState(&depth_stencil_desc_no_test, depth_stencil_state_no_test_.put());
   assert(SUCCEEDED(hr));
 
   hr = device_->CreateTexture2D(&depth_stencil_buffer_desc, nullptr, depth_stencil_buffer_.put());
@@ -479,14 +530,12 @@ void Render_DX11::CreateDepthBuffer(OS_Win32 const& os)
 
   hr = device_->CreateDepthStencilView(depth_stencil_buffer_.get(), nullptr, depth_stencil_view_.put());
   assert(SUCCEEDED(hr));
-
-  device_context_->OMSetDepthStencilState(depth_stencil_state_.get(), 0);
 }
 
-void Render_DX11::CreateRenderTarget()
+void Render_DX11::CreateRenderTarget(OS_Win32 const& os)
 {
   HRESULT hr;
-  hr = swap_chain_->ResizeBuffers(0, 0, 0, DXGI_FORMAT::DXGI_FORMAT_UNKNOWN, 0);
+  hr = swap_chain_->ResizeBuffers(0, os.GetWidth(), os.GetHeight(), DXGI_FORMAT::DXGI_FORMAT_UNKNOWN, 0);
   assert(SUCCEEDED(hr));
   //get backbuffer from swap chain
   winrt::com_ptr<ID3D11Texture2D> back_buffer;

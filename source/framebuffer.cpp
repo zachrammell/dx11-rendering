@@ -11,10 +11,10 @@ int Framebuffer::GetTargetCount() const
 }
 
 Framebuffer::Framebuffer(Render_DX11& render, int width, int height, int target_count)
-  : target_count_{target_count},
-    textures_{ decltype(textures_)::size_type(GetTargetCount()) },
-    resource_views_{ decltype(resource_views_)::size_type(GetTargetCount()) },
-    render_target_views_{ decltype(render_target_views_)::size_type(GetTargetCount()) }
+  : target_count_{ target_count },
+  textures_{ decltype(textures_)::size_type(GetTargetCount()) },
+  resource_views_{ decltype(resource_views_)::size_type(GetTargetCount()) },
+  render_target_views_{ decltype(render_target_views_)::size_type(GetTargetCount()) }
 {
 
   D3D11_TEXTURE2D_DESC texture_2d_desc{};
@@ -59,14 +59,14 @@ Framebuffer::Framebuffer(Render_DX11& render, int width, int height, int target_
     assert(SUCCEEDED(hr));
     hr = render.GetD3D11Device()->CreateShaderResourceView(textures_[i], &resource_view_desc, resource_views_.data() + i);
     assert(SUCCEEDED(hr));
+    D3D11_DEPTH_STENCIL_VIEW_DESC depth_stencil_view_desc{};
+    depth_stencil_view_desc.Format = DXGI_FORMAT_D32_FLOAT;
+    depth_stencil_view_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+
+    hr = render.GetD3D11Device()->CreateDepthStencilView(textures_[i], &depth_stencil_view_desc, depth_stencil_view_.put());
+    assert(SUCCEEDED(hr));
   }
 
-  D3D11_DEPTH_STENCIL_VIEW_DESC depth_stencil_view_desc{};
-  depth_stencil_view_desc.Format = DXGI_FORMAT_D32_FLOAT;
-  depth_stencil_view_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-
-  hr = render.GetD3D11Device()->CreateDepthStencilView(textures_[target_count - 1], &depth_stencil_view_desc, depth_stencil_view_.put());
-  assert(SUCCEEDED(hr));
 
   ZeroMemory(&viewport_, sizeof(viewport_));
   viewport_.Height = height;

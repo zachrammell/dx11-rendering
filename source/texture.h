@@ -34,7 +34,7 @@ public:
   void Clear(Render_DX11& render, DirectX::XMFLOAT4 color);
 private:
   friend Render_DX11;
-  RenderTexture(Render_DX11& render, int width, int height, bool depth = false);
+  RenderTexture(Render_DX11& render, int width, int height);
   winrt::com_ptr<ID3D11RenderTargetView> render_target_view_ = nullptr;
   winrt::com_ptr<ID3D11DepthStencilView> depth_stencil_view_ = nullptr;
   D3D11_VIEWPORT viewport_;

@@ -59,6 +59,8 @@ public:
   void Present();
   void ResizeFramebuffer(OS_Win32 const& os);
 
+  void EnableDepthTest(bool enabled);
+
   SamplerID CreateSampler(/* params??? */);
   void UseSampler(SamplerID sampler, int slot);
 
@@ -102,13 +104,14 @@ public:
 
   TextureID CreateTexture(Image const& image);
   void UseTexture(TextureID texture, int slot);
+  void UnuseTexture(int slot);
 
   TextureID CreateRenderTexture(int width, int height);
   void RenderTo(TextureID render_texture);
   void ClearRenderTexture(TextureID render_texture);
 
-  MeshID CreateMesh(Mesh const& m);
-  MeshID CreateMesh(std::vector<Mesh::Vertex> const& vertex_buffer);
+  MeshID CreateMesh(Model const& m);
+  MeshID CreateMesh(std::vector<Model::Vertex> const& vertex_buffer);
   void UseMesh(MeshID mesh);
 
   FramebufferID CreateFramebuffer(int width, int height, int target_count);
@@ -116,6 +119,7 @@ public:
   void RenderToFramebuffer(FramebufferID framebuffer);
   void ClearFramebuffer(FramebufferID framebuffer);
   void UseFramebufferTexture(FramebufferID framebuffer, int target, int slot);
+  void UseFramebufferDepth(FramebufferID framebuffer);
 
   void SetRenderMode(RenderMode render_mode);
 
@@ -139,6 +143,7 @@ private: /* ==== Raw DirectX resources ==== */
   winrt::com_ptr<ID3D11Texture2D> depth_stencil_buffer_;
 
   winrt::com_ptr<ID3D11DepthStencilState> depth_stencil_state_;
+  winrt::com_ptr<ID3D11DepthStencilState> depth_stencil_state_no_test_;
   winrt::com_ptr<ID3D11RasterizerState> rasterizer_state_;
   winrt::com_ptr<ID3D11RasterizerState> rasterizer_state_wireframe_;
   winrt::com_ptr<ID3D11SamplerState> sampler_state_;
@@ -147,7 +152,7 @@ private: /* ==== Raw DirectX resources ==== */
   D3D11_VIEWPORT viewport_;
 private: /* ==== Encapsulated DirectX resources ==== */
   std::vector<Shader>   shaders_;
-  std::vector<Mesh_D3D> meshes_;
+  std::vector<Mesh> meshes_;
   struct InternalTexture
   {
     union
@@ -190,7 +195,7 @@ private: /* ==== Encapsulated DirectX resources ==== */
   void CleanupRenderTarget();
   void DeleteDepthBuffer();
   void CreateDepthBuffer(OS_Win32 const& os);
-  void CreateRenderTarget();
+  void CreateRenderTarget(OS_Win32 const& os);
 
   Texture* TextureFromFramebuffer(FramebufferID framebuffer, int target);
   void ClearDefaultFramebuffer();
