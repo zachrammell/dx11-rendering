@@ -113,6 +113,7 @@ public:
   MeshID CreateMesh(Model const& m);
   MeshID CreateMesh(std::vector<Model::Vertex> const& vertex_buffer);
   void UseMesh(MeshID mesh);
+  void DestroyMesh(MeshID mesh);
 
   FramebufferID CreateFramebuffer(int width, int height, int target_count);
   int GetFramebufferTargetCount(FramebufferID framebuffer);

@@ -46,7 +46,7 @@ add_executable(${PROJECT_NAME}
   "source/geometry/interval.h"
   "source/scene.h"
   "source/scene.cpp"
-   "source/hierarchies/octree.h")
+   "source/hierarchies/octree.h" "source/hierarchies/kdtree.h")
 
 target_link_libraries(${PROJECT_NAME}
   user32

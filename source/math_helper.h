@@ -30,4 +30,14 @@ auto avg(T... args)
   return sum(args...) / sizeof...(args);
 }
 
+float inverseLerp(float a, float b, float v);
+
+template<typename T>
+float inverseLerp(T a, T b, T v)
+{
+  T AB = b - a;
+  T AV = v - a;
+  return dot(AV, AB) / dot(AB, AB);
+}
+
 }

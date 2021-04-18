@@ -35,6 +35,15 @@ struct Model
     float3 position = {};
     float3 normal = {};
     float2 tex_coord = {};
+
+    Vertex interp(Vertex const& v, float t) const
+    {
+      Vertex nv;
+      nv.position = lerp(position, v.position, t);
+      nv.normal = lerp(normal, v.normal, t);
+      nv.tex_coord = lerp(tex_coord, v.tex_coord, t);
+      return nv;
+    }
   };
   using Index = uint32_t;
 

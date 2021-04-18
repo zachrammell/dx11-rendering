@@ -15,6 +15,8 @@ private:
 public:
   Vec<Dim> mn, mx;
 
+  Box() = default;
+
   Box(Vec<Dim> const& min, Vec<Dim> const& max)
   : mn(min),
     mx(max)
@@ -24,11 +26,11 @@ public:
     {
       Vec<Dim> N{};
       N[i] = 1;
-      slabs_.emplace_back(N, -mn[0], mx[0]);
+      slabs_.emplace_back(N, -mn[i], mx[i]);
     }
   }
 
-  bool contains(Vec<Dim> const& point)
+  bool contains(Vec<Dim> const& point) const
   {
     // for each axis
     for (unsigned int i = 0; i < Dim; ++i)
@@ -65,7 +67,7 @@ public:
     return (dmin <= sphere.radius * sphere.radius);
   }
 
-  bool intersects(Ray<Dim> const& ray)
+  bool intersects(Ray<Dim> const& ray) const
   {
     Interval interval = Interval<Dim>::intersect(ray, slabs_);
     float t;

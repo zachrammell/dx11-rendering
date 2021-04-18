@@ -91,7 +91,7 @@ vs_out vs_main(vs_in input)
   output.position_world = mul(obj_data.World, float4(input.position_local, 1.0f));
   output.position_view = mul(frame_data.View, output.position_world);
   output.position_clip = mul(frame_data.Projection, output.position_view);
-  output.normal = mul(obj_data.WorldNormal, input.normal);
+  output.normal = mul(obj_data.WorldNormal, float4(input.normal, 0.0f));
   output.uv = input.tex_coord;
   return output;
 }
@@ -120,7 +120,7 @@ ps_out ps_main(vs_out input) : SV_TARGET
   output.color.a = 1.0f;
   output.normal.xyz = normal;
   output.normal.a = 1.0f;
-  output.position = (input.position_world / 2.0f) + 1.0f;
+  output.position = input.position_world;
 
   return output;
 }

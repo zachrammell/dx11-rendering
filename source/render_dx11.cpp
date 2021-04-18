@@ -312,8 +312,20 @@ void Render_DX11::UseMesh(MeshID mesh)
   }
 }
 
+void Render_DX11::DestroyMesh(MeshID mesh)
+{
+  if (bound_mesh == mesh)
+    bound_mesh = None;
+  meshes_[mesh].~Mesh();
+}
+
 void Render_DX11::Draw()
 {
+  if (bound_mesh == None)
+  {
+    fprintf(stderr, "[ERROR]: %s\n", "Drawing with no mesh bound");
+    return;
+  }
   auto& mesh = meshes_[bound_mesh];
   if (mesh.index_count_)
     GetD3D11Context()->DrawIndexed(mesh.index_count_, 0, 0);

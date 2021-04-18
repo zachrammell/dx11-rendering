@@ -23,17 +23,17 @@ End Header --------------------------------------------------------*/
 #include <imgui.h>
 #include <imgui_impl_dx11.h>
 #include <imgui_impl_win32.h>
-#include <iostream>
-
 
 #include "structures/per_object.h"
 #include "structures/per_frame.h"
-
-#include "geometry/box.h"
+#include "hierarchies/octree.h"
+#include "hierarchies/kdtree.h"
 #include "math_helper.h"
 
 namespace fs = std::filesystem;
 namespace dx = DirectX;
+
+using Tree = void;
 
 int main()
 {
@@ -81,22 +81,47 @@ int main()
   float cam_yaw = 0.0f, cam_pitch = 0.0f;
   float mouse_sensitivity = 0.005f;
 
+  enum tree_type_t
+  {
+    tree_octree,
+    tree_kdtree,
+
+    tree_COUNT
+  };
+  char* tree_type_names[] =
+  {
+    "Octree",
+    "Kd-Tree"
+  };
+  tree_type_t tree_type = tree_octree;
+
+  struct tree_settings_t
+  {
+    bool bounds = true;
+    bool mesh = true;
+    bool mesh_colors = true;
+    int node_size = 512;
+  } tree_settings;
+
   int selected_view = -1;
 
   per_object per_object_data;
   per_frame per_frame_data;
   per_frame_data.AmbientColor = float4(0.031, 0.027, 0.031, 1.0f);
 
-  CS350::Model sphere_model = CS350::Model::GenerateSphere(16, 16);
-  CS350::Render_DX11::MeshID sphere_mesh = render.CreateMesh(sphere_model);
+  //CS350::Model sphere_model = CS350::Model::GenerateSphere(16, 16);
+  //CS350::Render_DX11::MeshID sphere_mesh = render.CreateMesh(sphere_model);
 
-  CS350::Model unit_line_cube_model = CS350::Model::GenerateUnitLineCube();
-  CS350::Render_DX11::MeshID unit_line_cube_mesh = render.CreateMesh(unit_line_cube_model);
+  //CS350::Model unit_line_cube_model = CS350::Model::GenerateUnitLineCube();
+  //CS350::Render_DX11::MeshID unit_line_cube_mesh = render.CreateMesh(unit_line_cube_model);
 
   CS350::Image metal_image = CS350::Image("assets/textures/metal_roof_diff_512x512.png");
 
   CS350::Model bunny_model = CS350::Model::Load("assets/models/bunny_high_poly.obj");
-  CS350::Render_DX11::MeshID bunny_mesh = render.CreateMesh(bunny_model);
+  //CS350::Render_DX11::MeshID bunny_mesh = render.CreateMesh(bunny_model);
+
+  Tree* bunny_tree = new CS350::Octree(bunny_model, 512);
+  ((CS350::Octree*)bunny_tree)->Upload(render);
 
   CS350::Render_DX11::TextureID metal_texture = render.CreateTexture(metal_image);
   CS350::Render_DX11::FramebufferID framebuffer = render.CreateFramebuffer(os.GetWidth(), os.GetHeight(), 4);
@@ -131,6 +156,31 @@ int main()
                         (CS350::Shader::InputLayout_POS | CS350::Shader::InputLayout_NOR | CS350::Shader::InputLayout_TEX)
     );
 
+  auto regenerate_tree = [&](tree_type_t new_tree_type)
+  {
+    if (tree_type == tree_octree)
+    {
+      ((CS350::Octree*)bunny_tree)->ReleaseMeshes(render);
+      delete ((CS350::Octree*)bunny_tree);
+    }
+    else if (tree_type == tree_kdtree)
+    {
+      ((CS350::KdTree*)bunny_tree)->ReleaseMeshes(render);
+      delete ((CS350::KdTree*)bunny_tree);
+    }
+
+    if (new_tree_type == tree_octree)
+    {
+      bunny_tree = new CS350::Octree(bunny_model, tree_settings.node_size);
+      ((CS350::Octree*)bunny_tree)->Upload(render);
+    }
+    else if (new_tree_type == tree_kdtree)
+    {
+      bunny_tree = new CS350::KdTree(bunny_model, tree_settings.node_size);
+      ((CS350::KdTree*)bunny_tree)->Upload(render);
+    }
+  };
+
   while (!os.ShouldClose())
   {
     float dt;
@@ -154,7 +204,7 @@ int main()
       cam_pitch = std::clamp(cam_pitch - mouse_data.dy * mouse_sensitivity, -dx::XM_PIDIV2 + 0.05f, dx::XM_PIDIV2 - 0.05f);
       cam_yaw -= mouse_data.dx * mouse_sensitivity;
     }
-    cam_distance = std::clamp(cam_distance - 0.15f * mouse_data.scroll_dy, 0.05f, 10.0f);
+    cam_distance = std::clamp(cam_distance - 0.01f * mouse_data.scroll_dy, 0.05f, 10.0f);
 
     dx::XMStoreFloat4(&cam_position, dx::XMVector3Transform(dx::XMVectorSet(0, 0, cam_distance, 0.0f), dx::XMMatrixRotationRollPitchYaw(cam_pitch, cam_yaw, 0.0f)));
 
@@ -207,23 +257,52 @@ int main()
       ImGui::DragFloat3("Camera Position", &(cam_position.x));
       ImGui::DragFloat("Camera FOV", &cam_fov, 0.1f, 20.0f, 130.0f);
     }
+    if (ImGui::CollapsingHeader("Tree Properties"))
+    {
+      if (ImGui::BeginCombo("Tree Type", tree_type_names[tree_type]))
+      {
+        for (int i = 0; i < tree_COUNT; ++i)
+        {
+          if (ImGui::Selectable(tree_type_names[i], tree_type == i))
+          {
+            if (i != tree_type)
+            {
+              regenerate_tree((tree_type_t)i);
+            }
+            tree_type = (tree_type_t)i;
+          }
+        }
+        ImGui::EndCombo();
+      }
+
+      ImGui::Checkbox("Draw Tree Bounds", &tree_settings.bounds);
+      ImGui::Checkbox("Draw Tree Meshes", &tree_settings.mesh);
+      if (tree_settings.mesh)
+      {
+        ImGui::Checkbox("Color Tree Meshes", &tree_settings.mesh_colors);
+      }
+      ImGui::InputInt("Tree Node Triangle Count", &tree_settings.node_size);
+      if (ImGui::Button("Regenerate Tree"))
+      {
+        regenerate_tree(tree_type);
+      }
+    }
     ImGui::End();
 
     world_matrix = dx::XMMatrixIdentity();
     world_matrix *= dx::XMMatrixScaling(model_scale, model_scale, model_scale);
     world_matrix *= dx::XMMatrixRotationAxis(cam_up, dx::XMConvertToRadians(model_rotation));
     world_matrix *= dx::XMMatrixTranslation(model_position.x, model_position.y, model_position.z);
-
-    cam_projection_matrix = dx::XMMatrixPerspectiveFovRH(dx::XMConvertToRadians(cam_fov), (float)os.GetWidth() / (float)os.GetHeight(), 0.05f, 1000.0f);
-    cam_view_matrix = dx::XMMatrixLookAtRH(dx::XMLoadFloat4(&cam_position), dx::XMLoadFloat3(&cam_target), cam_up);
     dx::XMStoreFloat4x4(&(per_object_data.World), world_matrix);
     dx::XMStoreFloat4x4(&(per_object_data.WorldNormal), CS350::InverseTranspose(world_matrix));
-    per_object_data.Color = { model_color, 1.0f };
 
+    cam_view_matrix = dx::XMMatrixLookAtRH(dx::XMLoadFloat4(&cam_position), dx::XMLoadFloat3(&cam_target), cam_up);
     dx::XMStoreFloat4x4(&(per_frame_data.View), cam_view_matrix);
+    cam_projection_matrix = dx::XMMatrixPerspectiveFovRH(dx::XMConvertToRadians(cam_fov), (float)os.GetWidth() / (float)os.GetHeight(), 0.05f, 1000.0f);
     dx::XMStoreFloat4x4(&(per_frame_data.Projection), cam_projection_matrix);
     per_frame_data.CameraPosition = cam_position;
     //printf("cam position: (%f, %f, %f)\n", cam_position.x, cam_position.y, cam_position.z);
+    per_object_data.Color = { model_color, 1.0f };
 
     render.UpdateUniform(per_frame, per_frame_data);
     render.UpdateUniform(per_object, per_object_data);
@@ -242,8 +321,13 @@ int main()
     render.UseUniform(per_frame, 1);
 
     // draw meshes
-    render.UseMesh(bunny_mesh);
-    render.Draw();
+    if (tree_settings.mesh)
+    {
+      if (tree_type == tree_octree)
+        ((CS350::Octree*)bunny_tree)->DrawMesh(render, per_object, tree_settings.mesh_colors);
+      else if (tree_type == tree_kdtree)
+        ((CS350::KdTree*)bunny_tree)->DrawMesh(render, per_object, tree_settings.mesh_colors);
+    }
 
     // light meshes
     render.EnableDepthTest(false);
@@ -271,8 +355,13 @@ int main()
     render.GetD3D11Context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
     render.UseShader(debug_wireframe);
     {
-      render.UseMesh(unit_line_cube_mesh);
-      render.Draw();
+      if (tree_settings.bounds)
+      {
+        if (tree_type == tree_octree)
+          ((CS350::Octree*)bunny_tree)->DrawBounds(render, per_object);
+        else if (tree_type == tree_kdtree)
+          ((CS350::KdTree*)bunny_tree)->DrawBounds(render, per_object);
+      }
     }
 
     if (draw_vertex_normals)
@@ -281,8 +370,10 @@ int main()
       per_object_data.Color = { vertex_normals_color, 1.0f };
       render.UpdateUniform(per_object, per_object_data);
 
-      render.UseMesh(bunny_mesh);
-      render.Draw();
+      if (tree_type == tree_octree)
+        ((CS350::Octree*)bunny_tree)->DrawMesh(render, per_object);
+      else if (tree_type == tree_kdtree)
+        ((CS350::KdTree*)bunny_tree)->DrawMesh(render, per_object);
     }
 
     render.SetClearColor({ 0.15f, 0.15f, 0.15f });
@@ -321,7 +412,7 @@ int main()
     {
       ImGui::ShowDemoWindow(&show_imgui_demo);
     }
-    ImGui::GetOverlayDrawList()->AddCircleFilled(io.MousePos, 20.0f, ImGui::GetColorU32({ 1, 0, 1, 0.5f }));
+    ImGui::GetOverlayDrawList()->AddCircleFilled(io.MousePos, 10.0f, ImGui::GetColorU32({ 1, 0, 1, 0.5f }));
 
     ImGui::Render();
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());

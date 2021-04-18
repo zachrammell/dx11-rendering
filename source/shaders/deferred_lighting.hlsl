@@ -72,13 +72,14 @@ ps_out ps_main(vs_out input) : SV_TARGET
   light_contribution lc1 = DirectionalLight(make_directional_light(white, view), view, normal);
     light_contribution lc = PointLight(
       make_point_light(white, frame_data.CameraPosition),
-      frag_pos, view, normal, float3(0.5f, 0.5f, 0.5f)
+      frag_pos, view, normal, float3(0.0f, 0.0f, 0.0f)
       );
     intensity += lc.diffuse + lc.specular;
   //}
 
   output.color = frame_data.AmbientColor + float4(lc.diffuse * diffuse_color.xyz, 1.0f) + float4(lc.specular * white, 1.0f);
   output.color.a = 1.0f;
+
 
   return output;
 }

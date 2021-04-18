@@ -38,6 +38,11 @@ struct Vec<2> : float2
 template<>
 struct Vec<3> : float3
 {
+  Vec() = default;
+
+  Vec(float3 const& r) : float3(r)
+  {}
+
   float const& operator[](int i) const
   {
     return (&x)[i];

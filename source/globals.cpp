@@ -16,3 +16,6 @@ dx::XMMATRIX world_matrix;
 float3 vertex_normals_color = { 0, 1, 1 };
 float3 face_normals_color = { 1, 0, 1 };
 float Reflectivity = 0.5f;
+
+CS350::Model unit_line_cube_model = CS350::Model::GenerateUnitLineCube();
+CS350::Render_DX11::MeshID unit_line_cube_mesh = -1;

@@ -11,6 +11,19 @@ struct Triangle
 {
   Vec<Dim> v0, v1, v2;
 
+  Vec<Dim>& operator[](int i)
+  {
+    switch (i)
+    {
+    case 0: return v0;
+    case 1: return v1;
+    case 2: return v2;
+    default: // die
+      __debugbreak();
+      return *(Vec<Dim>*)nullptr;
+    }
+  }
+
   bool intersect(Ray<Dim> const& ray) const
   {
     Vec<Dim> e1 = v1 - v0;
@@ -52,7 +65,7 @@ struct Triangle
     return fabsf((v0.x * (v1.y - v2.y) + v1.x * (v2.y - v0.y) + v2.x * (v0.y - v1.y)) / 2.0f);
   }
 
-  bool contains(Point<Dim> const& p) const
+  bool contains(Vec<Dim> const& p) const
   {
     /* Calculate area of triangle ABC */
     float A = area();

@@ -15,6 +15,7 @@ struct Slab
   Slab(Vec<Dim> N, float d0, float d1)
     : N{ N }, d0{ d0 }, d1{ d1 }
   {}
+  Slab() = default;
   Vec<Dim> N;
   float d0, d1;
 };

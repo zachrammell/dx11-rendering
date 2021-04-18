@@ -7,9 +7,3 @@ assets/models/powerplant/
 *.exe
 
 submission/
-
-assets/shaders/debug_line.hlsl
-
-assets/shaders/deferred_geometry.hlsl
-
-assets/shaders/deferred_lighting.hlsl
