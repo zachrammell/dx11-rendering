@@ -43,6 +43,11 @@ struct Vec<3> : float3
   Vec(float3 const& r) : float3(r)
   {}
 
+  operator float3() const
+  {
+    return *this;
+  }
+
   float const& operator[](int i) const
   {
     return (&x)[i];

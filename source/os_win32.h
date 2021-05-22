@@ -8,6 +8,8 @@
 
 #include "callback_helper.h"
 
+#include <array>
+
 namespace CS350
 {
 
@@ -44,7 +46,13 @@ public:
     int scroll_dy = 0;
   };
 
+  struct KeyState
+  {
+    bool pressed;
+  };
+
   MouseData GetMouseData() const;
+  KeyState GetKeyState(char c) const;
 
 private:
   bool should_close_window_;
@@ -54,6 +62,8 @@ private:
   MouseData mouse_data_;
 
   CallbackHelper<OS_Win32, 0, WNDPROC> window_procedure_callback_helper_;
+
+  std::array<KeyState, 256> key_states_{};
 
   class Timer
   {

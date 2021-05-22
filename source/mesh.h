@@ -22,6 +22,7 @@ End Header --------------------------------------------------------*/
 #include <assimp/mesh.h>
 
 #include "structures/types/types_cpp.h"
+#include "geometry/box.h"
 
 namespace CS350
 {
@@ -51,6 +52,20 @@ struct Model
   std::vector<Index>  index_buffer;
   std::vector<Vertex> face_center_vertex_buffer;
 
+  Box<3> const& GetBounds() const
+  {
+    if (bounds_dirty)
+    {
+      for (Vertex v : vertex_buffer)
+      {
+        bounds.mn = (min)(bounds.mn, v.position);
+        bounds.mx = (max)(bounds.mx, v.position);
+      }
+      bounds_dirty = false;
+    }
+    return bounds;
+  }
+
   /* Mesh Creation Functions */
 
   static Model Load(char const* filepath);
@@ -69,6 +84,9 @@ private:
 
   void ProcessNode(aiScene const* scene, aiNode const* node);
   void ProcessMesh(aiScene const* scene, aiMesh const* mesh);
+
+  mutable bool bounds_dirty = true;
+  mutable Box<3> bounds{};
 };
 
 class Mesh

@@ -7,7 +7,6 @@ float3 wireframe_color = { 0.75f, 0.75f, 0.75f };
 float3 light_color = { 1, 0.980392157, 0.788235294 };
 float sphere_rotation = 0;
 
-dx::XMVECTOR cam_up = dx::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 float3 model_position = {};
 
 float3 model_color = { 0.75f, 0.75f, 0.75f };

@@ -96,11 +96,36 @@ public:
       children[i] = new OctreeNode(new_models[i], max_triangles, &new_bounds[i]);
     }
   }
+  Box<3> const& GetBounds()
+  {
+    return bounds;
+  }
+  bool IsLeaf()
+  {
+    return !model.vertex_buffer.empty();
+  }
+  Model const& GetModel()
+  {
+    return model;
+  }
+
+  void Hit()
+  {
+    hit = true;
+  }
+
+  void Reset()
+  {
+    hit = false;
+  }
+
+  float4 color;
+
 private:
   Box<3> bounds;
   Model model;
-  float4 color;
   std::array<OctreeNode*, 8> children{};
+  bool hit;
 
   void DrawBounds(Render_DX11& render, Render_DX11::UniformID per_object_id)
   {
@@ -156,7 +181,7 @@ public:
 
   // non recursive DFS tree iteration
   template<typename F>
-  void Iterate(F const& f)
+  void Iterate(F&& f)
   {
     int depth = 0;
     std::stack<std::pair<int, OctreeNode*>> stk;
@@ -189,10 +214,7 @@ public:
       if (node->model.index_buffer.empty())
         return;
 
-      ColoredMesh mesh;
-      mesh.color = node->color;
-      mesh.mesh = render.CreateMesh(node->model);
-
+      ColoredMesh mesh{ node->color, render.CreateMesh(node->model) };
       meshes_.emplace_back(mesh);
     });
   }
@@ -207,6 +229,18 @@ public:
 
   void DrawMesh(Render_DX11& render, Render_DX11::UniformID per_object_id, bool color_chunks = false)
   {
+
+    Iterate([](OctreeNode* node, int depth)
+    {
+      if (!node->hit)
+      {
+        dx::XMStoreFloat4(&node->color,
+                          dx::XMColorHSVToRGB({
+                            fmod(depth * 11.25f, 360.0f) / 360.0f,
+                              1.0f, 1.0f }));
+      }
+    });
+
     for (ColoredMesh const& mesh : meshes_)
     {
       if (color_chunks)
@@ -235,9 +269,10 @@ public:
 
 private:
   OctreeNode* head_;
+
   struct ColoredMesh
   {
-    float4 color;
+    float4& color;
     Render_DX11::MeshID mesh;
   };
   std::vector<ColoredMesh> meshes_;

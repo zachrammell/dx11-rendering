@@ -7,19 +7,18 @@ Language: C++
 Platform: Windows 8.1+, MSVC v142, DirectX 11 compatible graphics hardware
 Project: zach.rammell_CS350_1
 Author: Zach Rammell, zach.rammell
-Creation date: 3/28/21
+Creation date: 4/18/21
 End Header --------------------------------------------------------*/
 
 a. How to use parts of your user interface that is NOT specified in the assignment description.
-  scroll wheel to zoom, right click and drag to move camera.
+  WASD and space/shift to move camera, hold right click and drag mouse to look around, left click to shoot sphere
   b. Any assumption that you make on how to use the application that, if violated, might cause
 the application to fail.
   The working directory of the application must contain the assets folder.
-  assets/models/powerplant needs to be filled in with the ppsection folders (untarred)
   please use release mode
 c. Which part of the assignment has been completed?
-Kd-Tree and Octree mesh splitting
-Triangle splitting partially completed (every other triangle is there)
+GJK algorithm
+shooting spheres into scene and having them collide
 
 d. Which part of the assignment has NOT been completed (not done, not working, etc.) and
 explanation on why those parts are not completed?

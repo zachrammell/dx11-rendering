@@ -77,6 +77,17 @@ OS_Win32::OS_Win32(LPCTSTR title, int width, int height)
     __debugbreak();
   }
 
+  {
+    RECT rc;
+
+    GetWindowRect(window_handle_, &rc);
+
+    int xPos = (GetSystemMetrics(SM_CXSCREEN) - rc.right) / 2;
+    int yPos = (GetSystemMetrics(SM_CYSCREEN) - rc.bottom) / 2;
+
+    SetWindowPos(window_handle_, 0, xPos, yPos, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
+  }
+
   // Update stored width and height to represent only the client area
   {
     RECT window_rect;
@@ -131,23 +142,12 @@ LRESULT OS_Win32::WindowProcedure(HWND handle_window,
                                   WPARAM w_param,
                                   LPARAM l_param)
 {
-  if (ImGui_ImplWin32_WndProcHandler(handle_window, message, w_param, l_param))
-  {
-    return true;
-  }
+  ImGui_ImplWin32_WndProcHandler(handle_window, message, w_param, l_param);
 
   switch (message)
   {
   case WM_KEYDOWN:
   {
-    if (ImGui::GetIO().WantCaptureKeyboard)
-    {
-      return 0;
-    }
-    if (ImGui::GetIO().WantCaptureMouse)
-    {
-      return 0;
-    }
     if (w_param == VK_ESCAPE)
     {
       if (MessageBox(nullptr, TEXT("Are you sure you want to exit?"),
@@ -156,6 +156,21 @@ LRESULT OS_Win32::WindowProcedure(HWND handle_window,
         should_close_window_ = true;
       }
     }
+    
+    char c = LOWORD(MapVirtualKeyW(w_param, MAPVK_VK_TO_CHAR));
+    if (c == '\0')
+      c = LOWORD(w_param);
+    key_states_[c].pressed = true;
+    
+    return 0;
+  }
+
+  case WM_KEYUP:
+  {
+    char c = LOWORD(MapVirtualKeyW(w_param, MAPVK_VK_TO_CHAR));
+    if (c == '\0')
+      c = LOWORD(w_param);
+    key_states_[c].pressed = false;
     return 0;
   }
 
@@ -241,6 +256,13 @@ double OS_Win32::GetTime() const
 OS_Win32::MouseData OS_Win32::GetMouseData() const
 {
   return mouse_data_;
+}
+
+OS_Win32::KeyState OS_Win32::GetKeyState(char c) const
+{
+  if (islower(c))
+    c = toupper(c);
+  return key_states_.at(c);
 }
 
 OS_Win32::Timer::Timer()

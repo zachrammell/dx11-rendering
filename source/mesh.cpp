@@ -181,9 +181,9 @@ Model Model::GenerateSphere(int sectorCount, int stackCount)
       v.position = { x, y, z };
 
       // normalized vertex normal (nx, ny, nz)
-      nx = -x;
-      ny = -y;
-      nz = -z;
+      nx = x;
+      ny = y;
+      nz = z;
       v.normal = { nx, ny, nz };
 
       sphere_mesh.vertex_buffer.push_back(v);
