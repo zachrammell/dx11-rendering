@@ -29,7 +29,7 @@
 
 
 
-struct per_object {
+struct per_object { 
   float4x4 World ;
   float4x4 WorldNormal ;
   float4 Color ;
@@ -43,7 +43,7 @@ struct per_object {
 
 
 
-struct per_frame {
+struct per_frame { 
   float4x4 View ;
   float4x4 Projection ;
   float4 CameraPosition ;
@@ -58,11 +58,11 @@ struct per_frame {
 
 
 
-struct per_light {
+struct per_light { 
   float4 Radius ;
 } ;
 
-struct lights {
+struct lights { 
   per_light LightData [16] ;
   int LightCount ;
 } ;

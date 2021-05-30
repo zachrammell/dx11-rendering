@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace CS350
+namespace IE
 {
 
 struct pixel_rgb

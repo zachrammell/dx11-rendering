@@ -1,9 +1,9 @@
-#include "image.h"
+#include "Image.h"
 
 #include <cassert>
 #include "stb_image.h"
 
-namespace CS350
+namespace IE
 {
 
 Image::Image(char const* image_path)
@@ -34,7 +34,7 @@ int Image::GetHeight() const
 
 int Image::GetPitch() const
 {
-  return GetWidth() * sizeof(pixel_rgb);
+  return GetWidth() * (int)sizeof(pixel_rgb);
 }
 
 }

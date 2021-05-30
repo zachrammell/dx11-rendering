@@ -1,7 +1,7 @@
 #pragma once
 
-#include "mesh.h"
-#include "render_dx11.h"
+#include "graphics/mesh.h"
+#include "graphics/render_dx11.h"
 
 #include <DirectXMath.h>
 namespace dx = DirectX;
@@ -20,5 +20,8 @@ extern dx::XMMATRIX world_matrix;
 extern float3 vertex_normals_color;
 extern float3 face_normals_color;
 extern float Reflectivity;
-extern CS350::Model unit_line_cube_model;
-extern CS350::Render_DX11::MeshID unit_line_cube_mesh;
+
+extern IE::Graphics::Model unit_line_cube_model;
+extern IE::Graphics::GfxDevice_DX11::MeshID unit_line_cube_mesh;
+extern IE::Graphics::Model unit_quad_model;
+extern IE::Graphics::GfxDevice_DX11::MeshID unit_quad_mesh;
